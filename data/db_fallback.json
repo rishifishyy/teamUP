@@ -1,0 +1,110 @@
+{
+  "users": [
+    {
+      "id": "user-1786986347621-ewth",
+      "_id": "user-1786986347621",
+      "username": "person1",
+      "email": "rishinehra1@gmail.com",
+      "password": "$2b$10$oShq5CI9x3b932xTy1Ue/OjhKWmhZASQ.ACNRvWHGVBSPSVriRsl6",
+      "epicTag": "rishifishyy",
+      "psnId": "",
+      "xboxId": "",
+      "nintendoId": "",
+      "discordId": "",
+      "region": "NA-East",
+      "langPrimary": "English",
+      "langSecondary": "None",
+      "hasMic": true,
+      "avatarSeed": "person1",
+      "age": 23,
+      "gender": "Male",
+      "isPremium": true,
+      "subscription": {
+        "plan": "Free",
+        "startDate": null,
+        "endDate": null,
+        "history": []
+      },
+      "lastPostDate": "2026-08-17T17:41:49.032Z",
+      "createdAt": "2026-08-17T17:05:47.621Z"
+    },
+    {
+      "id": "user-1786986371483-w7ep",
+      "_id": "user-1786986371483",
+      "username": "PERS1",
+      "email": "codedlama@gmail.com",
+      "password": "$2b$10$.67odquCxVtguWKgqn6JgOLxOtPJ18NR6ewooK3xaV.6/wAj0ReSC",
+      "epicTag": "yuldie",
+      "psnId": "",
+      "xboxId": "",
+      "nintendoId": "",
+      "discordId": "",
+      "region": "NA-East",
+      "langPrimary": "English",
+      "langSecondary": "None",
+      "hasMic": true,
+      "avatarSeed": "PERS1",
+      "age": 23,
+      "gender": "Male",
+      "isPremium": true,
+      "subscription": {
+        "plan": "Free",
+        "startDate": null,
+        "endDate": null,
+        "history": []
+      },
+      "lastPostDate": "2026-08-17T17:41:34.819Z",
+      "createdAt": "2026-08-17T17:06:11.483Z",
+      "resetToken": null,
+      "resetTokenExpiry": null
+    }
+  ],
+  "requests": [],
+  "matchRequests": [
+    {
+      "id": "matchreq-1786986406265",
+      "_id": "matchreq-1786986406265",
+      "fromUserId": "user-1786986347621",
+      "toUserId": "user-1786986371483",
+      "targetPostId": "req-1786986382154-g8uk",
+      "status": "acknowledged",
+      "createdAt": "2026-08-17T17:06:46.265Z"
+    },
+    {
+      "id": "matchreq-1786987890177",
+      "_id": "matchreq-1786987890177",
+      "fromUserId": "user-1786986347621",
+      "toUserId": "user-1786986371483",
+      "targetPostId": "req-1786987701926-uulk",
+      "status": "acknowledged",
+      "createdAt": "2026-08-17T17:31:30.177Z"
+    },
+    {
+      "id": "matchreq-1786988085540",
+      "_id": "matchreq-1786988085540",
+      "fromUserId": "user-1786986347621",
+      "toUserId": "user-1786986371483",
+      "targetPostId": "req-1786988069859-f5hn",
+      "status": "acknowledged",
+      "createdAt": "2026-08-17T17:34:45.540Z"
+    },
+    {
+      "id": "matchreq-1786988208151",
+      "_id": "matchreq-1786988208151",
+      "fromUserId": "user-1786986371483",
+      "toUserId": "user-1786986347621",
+      "targetPostId": "req-1786988191627-em3c",
+      "status": "acknowledged",
+      "createdAt": "2026-08-17T17:36:48.151Z"
+    },
+    {
+      "id": "matchreq-1786988509039",
+      "_id": "matchreq-1786988509039",
+      "fromUserId": "user-1786986347621",
+      "toUserId": "user-1786986371483",
+      "targetPostId": "req-1786988494819-5zrk",
+      "status": "acknowledged",
+      "createdAt": "2026-08-17T17:41:49.039Z"
+    }
+  ]
+}
