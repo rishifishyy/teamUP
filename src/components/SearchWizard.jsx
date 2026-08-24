@@ -229,7 +229,6 @@ export default function SearchWizard({ isOpen, onClose, onComplete, currentFilte
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          onClick={onClose}
         >
           <motion.div 
             className="modal-box wizard-box"
@@ -237,7 +236,6 @@ export default function SearchWizard({ isOpen, onClose, onComplete, currentFilte
             animate={{ y: 0, opacity: 1, scale: 1 }}
             exit={{ y: 50, opacity: 0, scale: 0.9 }}
             transition={{ type: "spring", damping: 25, stiffness: 300 }}
-            onClick={e => e.stopPropagation()}
           >
             <div className="modal-head wizard-head">
               <div className="wizard-progress">

@@ -25,3 +25,7 @@ dist-ssr
  
 # Environment Variables
 .env
+.env.*
+
+# Scratch / Temp scripts
+scratch/

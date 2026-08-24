@@ -15,7 +15,8 @@ async function clearDatabases() {
     const emptyDb = {
       users: [],
       requests: [],
-      matchRequests: []
+      matchRequests: [],
+      chatMessages: []
     };
     if (!fs.existsSync(path.dirname(fallbackDbPath))) {
       fs.mkdirSync(path.dirname(fallbackDbPath), { recursive: true });
@@ -27,7 +28,7 @@ async function clearDatabases() {
   }
 
   try {
-    const MONGO_URI = 'mongodb://127.0.0.1:27017/teamup'; // Same as server/db.js
+    const MONGO_URI = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/teamup_db';
     await mongoose.connect(MONGO_URI);
     console.log('Connected to MongoDB. Dropping collections...');
     

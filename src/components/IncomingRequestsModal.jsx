@@ -52,25 +52,22 @@ export default function IncomingRequestsModal({ isOpen, onClose, requests, onAcc
                   <small style={{ opacity: 0.7 }}>Requested {new Date(currentRequest.createdAt).toLocaleTimeString()}</small>
                 </p>
 
-                <div style={{ background: 'var(--card-bg-elevated)', padding: '1rem', borderRadius: '12px', marginBottom: '1.5rem', textAlign: 'left', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                  <h5 style={{ margin: '0 0 0.5rem 0', color: 'var(--text-secondary)', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '1px' }}>Sender's Setup</h5>
+                <div style={{ background: 'var(--card-bg-elevated)', padding: '1.1rem', borderRadius: '12px', marginBottom: '1.5rem', textAlign: 'left', display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+                  <h5 style={{ margin: '0 0 0.4rem 0', color: 'var(--text-secondary)', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: '700' }}>Sender's Setup</h5>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', fontSize: '0.9rem' }}>
-                    <Gamepad2 size={16} color="var(--primary-color)" /> <span>{currentRequest.senderPlatform}</span>
+                    <Gamepad2 size={16} color="var(--primary-color)" /> <span><strong>Platform:</strong> {currentRequest.senderPlatform || 'PC'}</span>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', fontSize: '0.9rem' }}>
-                    <Trophy size={16} color="#fbbf24" /> <span>{currentRequest.senderMode}</span>
+                    <Trophy size={16} color="#fbbf24" /> <span><strong>Rank:</strong> {currentRequest.senderRank || 'Diamond'}</span>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', fontSize: '0.9rem' }}>
-                    <Globe size={16} color="#10b981" /> <span>{currentRequest.senderRegion}</span>
+                    <Globe size={16} color="#10b981" /> <span><strong>Region & Lang:</strong> {currentRequest.senderRegion || 'NA-East'} • {currentRequest.senderLang || 'English'}</span>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', fontSize: '0.9rem' }}>
-                    <Users size={16} color="#8b5cf6" /> <span>{currentRequest.senderTeamSize}</span>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', fontSize: '0.9rem' }}>
-                    <Mic size={16} color={currentRequest.senderMic === 'Yes' ? '#10b981' : 'var(--text-muted)'} /> <span>{currentRequest.senderMic === 'Yes' ? 'Has Mic' : 'No Mic'}</span>
+                    <Mic size={16} color={currentRequest.senderMic === 'Yes' ? '#10b981' : 'var(--text-muted)'} /> <span><strong>Voice Chat:</strong> {currentRequest.senderMic === 'Yes' ? 'Has Mic (Voice)' : 'No Mic'}</span>
                   </div>
                   {currentRequest.senderNote && (
-                    <div style={{ marginTop: '0.5rem', padding: '0.75rem', background: 'rgba(255,255,255,0.05)', borderRadius: '8px', fontSize: '0.85rem', fontStyle: 'italic', color: 'var(--text-secondary)' }}>
+                    <div style={{ marginTop: '0.4rem', padding: '0.65rem 0.85rem', background: 'rgba(59, 130, 246, 0.08)', borderLeft: '3px solid var(--primary-color)', borderRadius: '4px', fontSize: '0.85rem', color: 'var(--text-primary)' }}>
                       "{currentRequest.senderNote}"
                     </div>
                   )}

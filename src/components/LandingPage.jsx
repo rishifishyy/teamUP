@@ -36,18 +36,12 @@ export default function LandingPage({ onStartFinder, onOpenAuthModal, onOpenPrem
           </p>
 
           <div className="hero-cta-group">
-            {currentUser ? (
-              <button className="btn btn-primary btn-lg" onClick={onStartFinder}>
-                <Zap size={18} /> Launch Teammate Finder <ArrowRight size={18} />
-              </button>
-            ) : (
-              <button className="btn btn-primary btn-lg" onClick={() => onOpenAuthModal('login')}>
-                <ShieldCheck size={18} /> Login to Find Teammates
-              </button>
-            )}
+            <button className="btn btn-primary btn-lg" onClick={onStartFinder}>
+              <Zap size={18} style={{ fill: 'currentColor' }} /> Launch Live Pool <ArrowRight size={18} />
+            </button>
             
             <button className="btn btn-outline btn-lg" onClick={onOpenPremium} style={{ color: '#eab308', borderColor: '#eab308' }}>
-              <Crown size={18} /> View Premium Plans
+              <Crown size={18} /> View VIP Plans
             </button>
           </div>
 

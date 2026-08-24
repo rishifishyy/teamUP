@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Check, User, Gamepad2, Globe, Languages, Mic, MicOff, Sparkles, Crown } from 'lucide-react';
-import { FORTNITE_REGIONS, FORTNITE_LANGUAGES } from './FilterSidebar';
+import { X, Check, User, Mail, Lock, Gamepad2, Sparkles, Crown, Eye, EyeOff } from 'lucide-react';
 
 const AVATAR_PRESETS = [
   'ShadowViper', 'AeroPhantom', 'FrostSniper', 'KitsuneFlow',
@@ -11,47 +10,49 @@ const AVATAR_PRESETS = [
 export default function ProfileModal({ isOpen, onClose, currentUser, onUpdateProfile, onOpenPremium, showToast }) {
   const [form, setForm] = useState({
     username: currentUser?.username || '',
+    email: currentUser?.email || '',
     epicTag: currentUser?.epicTag || '',
-    psnId: currentUser?.psnId || '',
-    xboxId: currentUser?.xboxId || '',
-    discordId: currentUser?.discordId || '',
-    nintendoId: currentUser?.nintendoId || '',
-    region: currentUser?.region || 'NA-East',
-    langPrimary: currentUser?.langPrimary || 'English',
-    langSecondary: currentUser?.langSecondary || 'None',
-    hasMic: currentUser?.hasMic !== false,
     avatarSeed: currentUser?.avatarSeed || currentUser?.username || '',
-    gender: currentUser?.gender || 'Male'
+    gender: currentUser?.gender || 'Male',
+    currentPassword: ''
   });
 
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (currentUser) {
       setForm({
         username: currentUser?.username || '',
+        email: currentUser?.email || '',
         epicTag: currentUser?.epicTag || '',
-        psnId: currentUser?.psnId || '',
-        xboxId: currentUser?.xboxId || '',
-        discordId: currentUser?.discordId || '',
-        region: currentUser?.region || 'NA-East',
-        langPrimary: currentUser?.langPrimary || 'English',
-        langSecondary: currentUser?.langSecondary || 'None',
-        hasMic: currentUser?.hasMic !== false,
         avatarSeed: currentUser?.avatarSeed || currentUser?.username || '',
-        gender: currentUser?.gender || 'Male'
+        gender: currentUser?.gender || 'Male',
+        currentPassword: ''
       });
+      setShowPassword(false);
     }
-  }, [currentUser]);
+  }, [currentUser, isOpen]);
 
   if (!isOpen || !currentUser) return null;
 
+  const isChangingSensitive =
+    (form.username && form.username.trim() !== currentUser.username) ||
+    (form.email && form.email.toLowerCase().trim() !== currentUser.email.toLowerCase());
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+
     if (!form.epicTag.trim()) {
       showToast('Epic Games Gamertag cannot be empty.', 'warning');
       return;
     }
+
+    if (isChangingSensitive && !form.currentPassword) {
+      showToast('Please enter your current password to save changes to your username or email.', 'warning');
+      return;
+    }
+
     setLoading(true);
     try {
       await onUpdateProfile(form);
@@ -67,11 +68,13 @@ export default function ProfileModal({ isOpen, onClose, currentUser, onUpdatePro
   const currentAvatarUrl = `https://api.dicebear.com/7.x/bottts/svg?seed=${form.avatarSeed}&backgroundColor=00b4d8`;
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal-box" onClick={e => e.stopPropagation()}>
+    <div className="modal-backdrop">
+      <div className="modal-box" style={{ maxWidth: '520px' }}>
+        
+        {/* Modal Header */}
         <div className="modal-head">
           <h3 className="modal-title">
-            <User size={18} /> Gamer Profile &amp; Linked IDs
+            <User size={18} /> Gamer Profile &amp; Account Settings
           </h3>
           <button type="button" className="modal-close-btn" onClick={onClose}>
             <X size={20} />
@@ -80,6 +83,7 @@ export default function ProfileModal({ isOpen, onClose, currentUser, onUpdatePro
 
         <form className="modal-body" onSubmit={handleSubmit}>
 
+          {/* Membership Tier Banner */}
           <div style={{
             background: currentUser.isPremium
               ? 'linear-gradient(135deg, rgba(251, 191, 36, 0.15), rgba(168, 85, 247, 0.15))'
@@ -120,7 +124,8 @@ export default function ProfileModal({ isOpen, onClose, currentUser, onUpdatePro
             </button>
           </div>
 
-          <div className="profile-avatar-row">
+          {/* Avatar Selector */}
+          <div className="profile-avatar-row" style={{ marginBottom: '1.25rem' }}>
             <img src={currentAvatarUrl} alt="Avatar" className="profile-avatar-large" />
             <div className="avatar-picker">
               <label><Sparkles size={13} /> Select Avatar Style</label>
@@ -139,10 +144,11 @@ export default function ProfileModal({ isOpen, onClose, currentUser, onUpdatePro
           </div>
 
           <div className="section-divider">
-            <span>Account Settings</span>
+            <span>Account Details</span>
           </div>
 
-          <div className="form-group" style={{ marginBottom: '1.25rem' }}>
+          {/* Username */}
+          <div className="form-group">
             <label htmlFor="editUsername"><User size={14} /> Username *</label>
             <input
               id="editUsername"
@@ -152,39 +158,86 @@ export default function ProfileModal({ isOpen, onClose, currentUser, onUpdatePro
               onChange={e => setForm({ ...form, username: e.target.value })}
               required
             />
-            <small style={{ color: 'var(--text-muted)', display: 'block', marginTop: '0.4rem' }}>
-              Your unique identity on TeamUP. Must be unique across all users.
+          </div>
+
+          {/* Email & Change Email */}
+          <div className="form-group">
+            <label htmlFor="editEmail"><Mail size={14} /> Email Address *</label>
+            <input
+              id="editEmail"
+              type="email"
+              className="form-input"
+              placeholder="you@example.com"
+              value={form.email}
+              onChange={e => setForm({ ...form, email: e.target.value })}
+              required
+            />
+            <small style={{ color: 'var(--text-muted)', display: 'block', marginTop: '0.35rem', fontSize: '0.78rem' }}>
+              Used for account recovery and notifications. Must be unique.
             </small>
-            
-            <AnimatePresence>
-              {form.username && form.username !== currentUser?.username && (
-                <motion.div 
-                  initial={{ opacity: 0, height: 0, marginTop: 0 }}
-                  animate={{ opacity: 1, height: 'auto', marginTop: '1rem' }}
-                  exit={{ opacity: 0, height: 0, marginTop: 0 }}
-                  className="form-group"
-                  style={{ overflow: 'hidden' }}
-                >
-                  <label htmlFor="currentPassword" style={{ color: '#fbbf24' }}>Current Password (Required for Username change) *</label>
+          </div>
+
+          {/* Password Prompt when Username or Email is edited */}
+          <AnimatePresence>
+            {isChangingSensitive && (
+              <motion.div
+                initial={{ opacity: 0, height: 0, marginTop: 0 }}
+                animate={{ opacity: 1, height: 'auto', marginTop: '0.85rem' }}
+                exit={{ opacity: 0, height: 0, marginTop: 0 }}
+                className="form-group"
+                style={{
+                  background: 'rgba(251, 191, 36, 0.08)',
+                  border: '1px solid rgba(251, 191, 36, 0.3)',
+                  padding: '0.85rem',
+                  borderRadius: 'var(--radius-md)',
+                  overflow: 'hidden'
+                }}
+              >
+                <label htmlFor="currentPassword" style={{ color: '#d97706', display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 600, fontSize: '0.85rem', marginBottom: '0.4rem' }}>
+                  <Lock size={14} /> Current Password (Required to confirm Email/Username change) *
+                </label>
+                <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
                   <input
                     id="currentPassword"
-                    type="password"
+                    type={showPassword ? 'text' : 'password'}
                     className="form-input"
+                    placeholder="Enter your current password"
                     value={form.currentPassword || ''}
                     onChange={e => setForm({ ...form, currentPassword: e.target.value })}
                     required
-                    style={{ borderColor: 'rgba(251, 191, 36, 0.4)' }}
+                    style={{ borderColor: '#f59e0b', paddingRight: '42px' }}
                   />
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(prev => !prev)}
+                    style={{
+                      position: 'absolute',
+                      right: '12px',
+                      background: 'none',
+                      border: 'none',
+                      color: 'var(--text-muted)',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      padding: '4px'
+                    }}
+                    title={showPassword ? 'Hide password' : 'Show password'}
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           <div className="section-divider">
-            <span>Linked Gamertags &amp; Socials</span>
+            <span>Fortnite Profile</span>
           </div>
 
           <div className="form-row">
+            {/* Epic Games Tag */}
             <div className="form-group">
               <label htmlFor="editEpicTag"><Gamepad2 size={14} /> Epic Games Tag *</label>
               <input
@@ -197,94 +250,7 @@ export default function ProfileModal({ isOpen, onClose, currentUser, onUpdatePro
               />
             </div>
 
-            <div className="form-group">
-              <label htmlFor="editDiscord">Discord Username</label>
-              <input
-                id="editDiscord"
-                type="text"
-                className="form-input"
-                placeholder="e.g. viper#0001"
-                value={form.discordId}
-                onChange={e => setForm({ ...form, discordId: e.target.value })}
-              />
-            </div>
-          </div>
-
-          <div className="form-row">
-            <div className="form-group">
-              <label htmlFor="editPsn">PlayStation Network (PSN ID)</label>
-              <input
-                id="editPsn"
-                type="text"
-                className="form-input"
-                placeholder="PSN ID"
-                value={form.psnId}
-                onChange={e => setForm({ ...form, psnId: e.target.value })}
-              />
-            </div>
-
-            <div className="form-group">
-              <label htmlFor="editXbox">Xbox Gamertag</label>
-              <input
-                id="editXbox"
-                type="text"
-                className="form-input"
-                placeholder="Xbox Gamertag"
-                value={form.xboxId}
-                onChange={e => setForm({ ...form, xboxId: e.target.value })}
-              />
-            </div>
-          </div>
-
-          <div className="form-row">
-            <div className="form-group">
-              <label htmlFor="editNintendo">Nintendo ID</label>
-              <input
-                id="editNintendo"
-                type="text"
-                className="form-input"
-                placeholder="Nintendo ID"
-                value={form.nintendoId}
-                onChange={e => setForm({ ...form, nintendoId: e.target.value })}
-              />
-            </div>
-          </div>
-
-          <div className="section-divider">
-            <span>Default Matching Preferences</span>
-          </div>
-
-          <div className="form-row">
-            <div className="form-group">
-              <label htmlFor="editRegion"><Globe size={14} /> Default Server Region</label>
-              <select
-                id="editRegion"
-                className="form-select"
-                value={form.region}
-                onChange={e => setForm({ ...form, region: e.target.value })}
-              >
-                {FORTNITE_REGIONS.map(reg => (
-                  <option key={reg.value} value={reg.value}>{reg.label}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="form-group">
-              <label htmlFor="editLang"><Languages size={14} /> Primary Language</label>
-              <select
-                id="editLang"
-                className="form-select"
-                value={form.langPrimary}
-                onChange={e => setForm({ ...form, langPrimary: e.target.value })}
-              >
-                {FORTNITE_LANGUAGES.map(lang => (
-                  <option key={lang} value={lang}>{lang}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <div className="form-row">
+            {/* Gender */}
             <div className="form-group">
               <label htmlFor="editGender">Gender</label>
               <select
@@ -300,32 +266,12 @@ export default function ProfileModal({ isOpen, onClose, currentUser, onUpdatePro
             </div>
           </div>
 
-          <div className="form-group">
-            <label>Microphone Status</label>
-            <div className="button-group">
-              <button
-                type="button"
-                className={`btn-toggle ${form.hasMic ? 'active' : ''}`}
-                onClick={() => setForm({ ...form, hasMic: true })}
-              >
-                <Mic size={14} style={{ display: 'inline', marginRight: 4 }} /> Have Mic
-              </button>
-              <button
-                type="button"
-                className={`btn-toggle ${!form.hasMic ? 'active' : ''}`}
-                onClick={() => setForm({ ...form, hasMic: false })}
-              >
-                <MicOff size={14} style={{ display: 'inline', marginRight: 4 }} /> No Mic
-              </button>
-            </div>
-          </div>
-
-          <div className="modal-footer">
+          <div className="modal-footer" style={{ marginTop: '1.25rem' }}>
             <button type="button" className="btn btn-outline" onClick={onClose}>
               Cancel
             </button>
             <button type="submit" className="btn btn-primary" disabled={loading}>
-              <Check size={16} /> {loading ? 'Saving...' : 'Save Profile Changes'}
+              <Check size={16} /> {loading ? 'Saving...' : 'Save Changes'}
             </button>
           </div>
 

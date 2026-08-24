@@ -15,9 +15,19 @@ const matchRequestSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['pending', 'accepted', 'declined'],
+    enum: ['pending', 'accepted', 'declined', 'acknowledged', 'declined_acknowledged'],
     default: 'pending'
   },
+  senderPlatform: { type: String, default: 'PC' },
+  senderRank: { type: String, default: 'Unranked' },
+  senderRegion: { type: String, default: 'NA-East' },
+  senderMic: { type: String, default: 'Yes' },
+  senderLang: { type: String, default: 'English' },
+  senderNote: { type: String, default: '' },
+  matchedAt: { type: Date },
+  isChatEnded: { type: Boolean, default: false },
+  chatEndedBy: { type: String, default: '' },
+  chatEndedAt: { type: Date },
   createdAt: {
     type: Date,
     default: Date.now

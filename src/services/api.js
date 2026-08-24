@@ -13,6 +13,24 @@ function getAuthHeaders() {
   };
 }
 
+async function safeJson(res, defaultError = 'Request failed') {
+  const text = await res.text();
+  let data = null;
+  try {
+    data = JSON.parse(text);
+  } catch {}
+
+  if (!res.ok) {
+    const errorMsg = data?.error || data?.message || (defaultError + (res.status ? ` (Status ${res.status})` : ''));
+    const err = new Error(errorMsg);
+    if (data?.isFreeLimitReached || res.status === 403) {
+      err.isFreeLimitReached = true;
+    }
+    throw err;
+  }
+  return data;
+}
+
 export const api = {
   async signup(userData) {
     const res = await fetch(`${API_BASE}/auth/signup`, {
@@ -20,9 +38,7 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(userData)
     });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Signup failed');
-    return data;
+    return safeJson(res, 'Signup failed');
   },
 
   async login(loginOrEmail, password) {
@@ -31,9 +47,7 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ loginOrEmail, password })
     });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Login failed. Check your email/username and password.');
-    return data;
+    return safeJson(res, 'Login failed. Check your credentials.');
   },
 
   async getMe() {
@@ -42,7 +56,7 @@ export const api = {
         headers: getAuthHeaders()
       });
       if (!res.ok) return null;
-      const data = await res.json();
+      const data = await safeJson(res);
       return data.user;
     } catch {
       return null;
@@ -55,20 +69,18 @@ export const api = {
       headers: getAuthHeaders(),
       body: JSON.stringify(profileData)
     });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Update failed');
+    const data = await safeJson(res, 'Failed to update profile');
     return data.user;
   },
 
   async getRequests() {
     try {
       const res = await fetch(`${API_BASE}/requests`);
-      if (!res.ok) throw new Error('Failed to fetch');
-      const data = await res.json();
+      if (!res.ok) return [];
+      const data = await safeJson(res);
       return data.requests || [];
-    } catch (err) {
-      const stored = localStorage.getItem('teamup_realtime_requests');
-      return stored ? JSON.parse(stored) : [];
+    } catch {
+      return [];
     }
   },
 
@@ -78,8 +90,7 @@ export const api = {
       headers: getAuthHeaders(),
       body: JSON.stringify(requestData)
     });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Failed to post teammate request');
+    const data = await safeJson(res, 'Failed to post teammate request');
     return data.request;
   },
 
@@ -95,14 +106,13 @@ export const api = {
     }
   },
 
-  async sendMatchRequest(postId) {
+  async sendMatchRequest(postId, setupData = {}) {
     const res = await fetch(`${API_BASE}/matches/${postId}/request`, {
       method: 'POST',
-      headers: getAuthHeaders()
+      headers: getAuthHeaders(),
+      body: JSON.stringify(setupData)
     });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Failed to send teammate request.');
-    return data;
+    return safeJson(res, 'Failed to send teammate request');
   },
 
   async getIncomingRequests() {
@@ -111,7 +121,7 @@ export const api = {
         headers: getAuthHeaders()
       });
       if (!res.ok) return [];
-      const data = await res.json();
+      const data = await safeJson(res);
       return data.incoming || [];
     } catch {
       return [];
@@ -124,8 +134,7 @@ export const api = {
         headers: getAuthHeaders()
       });
       if (!res.ok) return null;
-      const data = await res.json();
-      return data;
+      return await safeJson(res);
     } catch {
       return null;
     }
@@ -136,9 +145,7 @@ export const api = {
       method: 'POST',
       headers: getAuthHeaders()
     });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Failed to accept match.');
-    return data;
+    return safeJson(res, 'Failed to accept match');
   },
 
   async declineMatch(matchId) {
@@ -146,53 +153,103 @@ export const api = {
       method: 'POST',
       headers: getAuthHeaders()
     });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Failed to decline match.');
-    return data;
+    return safeJson(res, 'Failed to decline match');
+  },
+
+  async dismissMatch() {
+    try {
+      const res = await fetch(`${API_BASE}/matches/dismiss`, {
+        method: 'POST',
+        headers: getAuthHeaders()
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  },
+
+  async dismissDeclined() {
+    try {
+      const res = await fetch(`${API_BASE}/matches/dismiss-declined`, {
+        method: 'POST',
+        headers: getAuthHeaders()
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  },
+
+  async getActiveChatSession() {
+    try {
+      const res = await fetch(`${API_BASE}/chat/active-session`, {
+        headers: getAuthHeaders()
+      });
+      if (!res.ok) return null;
+      return await safeJson(res);
+    } catch {
+      return null;
+    }
+  },
+
+  async getChatMessages(matchId) {
+    try {
+      const res = await fetch(`${API_BASE}/chat/${matchId}/messages`, {
+        headers: getAuthHeaders()
+      });
+      if (!res.ok) return null;
+      return await safeJson(res);
+    } catch {
+      return null;
+    }
+  },
+
+  async sendChatMessage(matchId, text) {
+    const res = await fetch(`${API_BASE}/chat/${matchId}/message`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ text })
+    });
+    return safeJson(res, 'Failed to send message');
+  },
+
+  async endChatSession(matchId) {
+    const res = await fetch(`${API_BASE}/chat/${matchId}/end`, {
+      method: 'POST',
+      headers: getAuthHeaders()
+    });
+    return safeJson(res, 'Failed to end chat');
   },
 
   createPaymentOrder: async (data = {}) => {
-    try {
-      const token = localStorage.getItem('teamup_token');
-      if (!token || token.startsWith('local-token-')) {
-        throw new Error('You must be logged in with a real account to upgrade. Please log out and log back in.');
-      }
-      const res = await fetch(`${API_BASE}/payments/create-order`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify(data)
-      });
-      const result = await res.json();
-      if (!res.ok) throw new Error(result.error || 'Failed to create payment order');
-      return result;
-    } catch (err) {
-      throw err;
+    const token = localStorage.getItem('teamup_token');
+    if (!token || token.startsWith('local-token-')) {
+      throw new Error('You must be logged in with a real account to upgrade. Please log out and log back in.');
     }
+    const res = await fetch(`${API_BASE}/payments/create-order`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(data)
+    });
+    return safeJson(res, 'Failed to create payment order');
   },
 
   verifyPayment: async (paymentData) => {
-    try {
-      const res = await fetch(`${API_BASE}/payments/verify`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify(paymentData)
-      });
-      const result = await res.json();
-      if (!res.ok) throw new Error(result.error || 'Payment verification failed');
-      return result;
-    } catch (err) {
-      throw err;
-    }
+    const res = await fetch(`${API_BASE}/payments/verify`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(paymentData)
+    });
+    return safeJson(res, 'Payment verification failed');
   },
+
   forgotPassword: async (email) => {
     const res = await fetch(`${API_BASE}/auth/forgot-password`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email })
     });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Failed to send reset email.');
-    return data;
+    return safeJson(res, 'Failed to send reset email');
   },
 
   resetPassword: async (token, newPassword) => {
@@ -201,8 +258,6 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ token, newPassword })
     });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Failed to reset password.');
-    return data;
+    return safeJson(res, 'Failed to reset password');
   }
 };

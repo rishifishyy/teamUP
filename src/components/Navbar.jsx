@@ -1,5 +1,5 @@
 import React from 'react';
-import { Gamepad2, Plus, User, LogIn, LogOut, Compass, Home, Moon, Sun, Crown, Bell } from 'lucide-react';
+import { Gamepad2, Plus, User, LogIn, LogOut, Compass, Home, Moon, Sun, Crown, Bell, Zap } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 export default function Navbar({
@@ -41,15 +41,19 @@ export default function Navbar({
           >
             <Home size={15} /> Home
           </button>
-          {currentUser?.isPremium && (
-            <button
-              className={`nav-link ${currentView === 'livePool' ? 'active' : ''}`}
-              onClick={() => onNavigate('livePool')}
-              style={{ color: '#fbbf24', fontWeight: 600 }}
-            >
-              <Crown size={15} /> Live Pool
-            </button>
-          )}
+          <button
+            className={`nav-link ${currentView === 'livePool' || currentView === 'finder' ? 'active' : ''}`}
+            onClick={() => onNavigate('livePool')}
+            style={{
+              fontWeight: 700,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.4rem',
+              color: 'var(--primary-color)'
+            }}
+          >
+            <Zap size={16} style={{ fill: 'currentColor' }} /> Launch Live Pool
+          </button>
         </nav>
 
         <div className="nav-actions">
@@ -61,7 +65,7 @@ export default function Navbar({
             <button 
               className="btn btn-outline" 
               onClick={onOpenPremium}
-              title="You have an active Premium Subscription"
+              title="VIP Member"
               style={{
                 color: '#fbbf24',
                 borderColor: '#fbbf24',
@@ -73,7 +77,26 @@ export default function Navbar({
                 gap: '0.4rem'
               }}
             >
-              <Crown size={15} style={{ fill: '#fbbf24' }} /> VIP Member
+              <Crown size={15} style={{ fill: '#fbbf24' }} /> VIP
+            </button>
+          ) : currentUser ? (
+            <button 
+              className="btn btn-outline" 
+              onClick={onOpenPremium}
+              title="Upgrade to VIP"
+              style={{
+                color: '#eab308',
+                borderColor: '#eab308',
+                background: 'rgba(234, 179, 8, 0.08)',
+                fontWeight: 700,
+                padding: '0.45rem 0.85rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.4rem',
+                fontSize: '0.8rem'
+              }}
+            >
+              <Zap size={14} /> Free: {Math.max(0, 2 - ((currentUser.postsCount || 0) + (currentUser.invitesCount || 0)))}/2 left
             </button>
           ) : (
             <button 
@@ -90,13 +113,9 @@ export default function Navbar({
                 gap: '0.4rem'
               }}
             >
-              <Crown size={15} /> Premium
+              <Crown size={15} /> VIP
             </button>
           )}
-          
-          <button className="btn btn-primary" onClick={onOpenPostModal}>
-            <Plus size={16} /> Post Teammate Request
-          </button>
 
           {currentUser && (
             <button className="btn-icon" style={{ position: 'relative', marginLeft: '0.5rem' }} onClick={onOpenIncomingRequests} title="Incoming Match Requests">

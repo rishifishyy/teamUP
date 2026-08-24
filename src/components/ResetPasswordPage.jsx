@@ -7,6 +7,7 @@ export default function ResetPasswordPage({ token, onGoHome }) {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPass, setShowPass] = useState(false);
+  const [showConfirmPass, setShowConfirmPass] = useState(false);
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState('idle'); // 'idle' | 'success' | 'error'
   const [message, setMessage] = useState('');
@@ -176,18 +177,29 @@ export default function ResetPasswordPage({ token, onGoHome }) {
               <label htmlFor="rp-confirm" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--text-main)', fontWeight: 600, fontSize: '0.85rem', marginBottom: '0.5rem' }}>
                 <Lock size={14} /> Confirm Password
               </label>
-              <input
-                id="rp-confirm"
-                type={showPass ? 'text' : 'password'}
-                className="form-input"
-                placeholder="Re-enter your password"
-                value={confirmPassword}
-                onChange={e => setConfirmPassword(e.target.value)}
-                required
-                style={{
-                  borderColor: confirmPassword && confirmPassword !== newPassword ? '#ef4444' : undefined
-                }}
-              />
+              <div style={{ position: 'relative' }}>
+                <input
+                  id="rp-confirm"
+                  type={showConfirmPass ? 'text' : 'password'}
+                  className="form-input"
+                  placeholder="Re-enter your password"
+                  value={confirmPassword}
+                  onChange={e => setConfirmPassword(e.target.value)}
+                  required
+                  style={{
+                    paddingRight: '2.5rem',
+                    borderColor: confirmPassword && confirmPassword !== newPassword ? '#ef4444' : undefined
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPass(v => !v)}
+                  style={{ position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-dim)', padding: 0 }}
+                  title={showConfirmPass ? "Hide password" : "Show password"}
+                >
+                  {showConfirmPass ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
               {confirmPassword && confirmPassword !== newPassword && (
                 <p style={{ color: '#f87171', fontSize: '0.75rem', marginTop: '0.35rem' }}>Passwords do not match</p>
               )}

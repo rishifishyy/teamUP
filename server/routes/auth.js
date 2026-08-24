@@ -1,34 +1,37 @@
 import express from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import crypto from 'crypto';
-import { User } from '../models/User.js';
 import { getFallbackDb, saveFallbackDb, getIsMongoConnected } from '../db.js';
-import { sendPasswordResetEmail, sendWelcomeEmail } from '../email.js';
+import { User } from '../models/User.js';
+import { sendWelcomeEmail, sendPasswordResetEmail, sendAccountUpdateEmail } from '../email.js';
 
 const router = express.Router();
-const JWT_SECRET = process.env.JWT_SECRET || 'teamup_jwt_secret_2026_super_secure';
+const JWT_SECRET = process.env.JWT_SECRET || 'fortnite_teamup_super_secret_jwt_key_2026_production';
+
+function generateToken(user) {
+  return jwt.sign(
+    {
+      id: user._id || user.id,
+      username: user.username,
+      email: user.email
+    },
+    JWT_SECRET,
+    { expiresIn: '7d' }
+  );
+}
 
 function checkSubscriptionExpiry(user) {
-  if (user && user.isPremium && user.subscription?.endDate) {
-    const expiry = new Date(user.subscription.endDate);
-    if (expiry < new Date()) {
+  if (user.isPremium && user.subscription?.endDate) {
+    if (new Date() > new Date(user.subscription.endDate)) {
       user.isPremium = false;
-      if (user.subscription) user.subscription.plan = 'Free';
+      user.subscription.plan = 'Free';
       return true;
     }
   }
   return false;
 }
 
-function generateToken(user) {
-  return jwt.sign(
-    { id: user._id || user.id, username: user.username, email: user.email },
-    JWT_SECRET,
-    { expiresIn: '7d' }
-  );
-}
-
+// 1. Sign Up Route (Sends Welcome Email)
 router.post('/signup', async (req, res) => {
   try {
     const {
@@ -50,29 +53,35 @@ router.post('/signup', async (req, res) => {
     } = req.body;
 
     if (!username || !email || !password || !epicTag || !age || !gender) {
-      return res.status(400).json({ error: 'Username, Email, Password, Epic Tag, Age, and Gender are required.' });
+      return res.status(400).json({ error: 'Please fill in all required fields (Username, Email, Password, Epic Games Tag, Age, Gender).' });
     }
 
-    const hashedPassword = await bcrypt.hash(password, 10);
+    if (parseInt(age, 10) < 13) {
+      return res.status(400).json({ error: 'You must be at least 13 years old to join TeamUP.' });
+    }
 
     if (getIsMongoConnected()) {
       const existingUser = await User.findOne({
         $or: [
-          { email: email.toLowerCase() },
-          { username: { $regex: new RegExp(`^${username.trim()}$`, 'i') } },
-          { epicTag: { $regex: new RegExp(`^${epicTag.trim()}$`, 'i') } }
+          { email: email.toLowerCase().trim() },
+          { username: username.trim() }
         ]
       });
 
       if (existingUser) {
-        if (existingUser.email.toLowerCase() === email.toLowerCase()) {
-          return res.status(400).json({ error: 'Email is already registered.' });
+        if (existingUser.email.toLowerCase() === email.toLowerCase().trim()) {
+          return res.status(400).json({ error: 'An account with this email already exists.' });
         }
-        if (existingUser.username.toLowerCase() === username.trim().toLowerCase()) {
-          return res.status(400).json({ error: 'Username is already registered.' });
-        }
-        return res.status(400).json({ error: 'This Epic Gamertag is already linked to another account.' });
+        return res.status(400).json({ error: 'Username is already taken. Please choose another.' });
       }
+
+      const existingEpic = await User.findOne({ epicTag: epicTag.trim() });
+      if (existingEpic) {
+        return res.status(400).json({ error: 'This Epic Games Tag is already linked to an existing account.' });
+      }
+
+      const salt = await bcrypt.genSalt(10);
+      const hashedPassword = await bcrypt.hash(password, salt);
 
       const newUser = await User.create({
         username: username.trim(),
@@ -97,6 +106,8 @@ router.post('/signup', async (req, res) => {
           endDate: null,
           history: []
         },
+        postsCount: 0,
+        invitesCount: 0,
         lastPostDate: null
       });
 
@@ -109,14 +120,25 @@ router.post('/signup', async (req, res) => {
       return res.status(201).json({ token, user: userObj });
     } else {
       const db = getFallbackDb();
-      const existingEmail = db.users.find(u => u.email.toLowerCase() === email.toLowerCase());
-      if (existingEmail) return res.status(400).json({ error: 'Email is already registered.' });
+      const existingUser = db.users.find(u =>
+        u.email.toLowerCase() === email.toLowerCase().trim() ||
+        u.username.toLowerCase() === username.toLowerCase().trim()
+      );
 
-      const existingUsername = db.users.find(u => u.username.toLowerCase() === username.toLowerCase());
-      if (existingUsername) return res.status(400).json({ error: 'Username is already registered.' });
+      if (existingUser) {
+        if (existingUser.email.toLowerCase() === email.toLowerCase().trim()) {
+          return res.status(400).json({ error: 'An account with this email already exists.' });
+        }
+        return res.status(400).json({ error: 'Username is already taken. Please choose another.' });
+      }
 
-      const existingEpic = db.users.find(u => u.epicTag.toLowerCase() === epicTag.trim().toLowerCase());
-      if (existingEpic) return res.status(400).json({ error: 'This Epic Gamertag is already linked to another account.' });
+      const existingEpic = db.users.find(u => u.epicTag.toLowerCase() === epicTag.toLowerCase().trim());
+      if (existingEpic) {
+        return res.status(400).json({ error: 'This Epic Games Tag is already linked to an existing account.' });
+      }
+
+      const salt = await bcrypt.genSalt(10);
+      const hashedPassword = await bcrypt.hash(password, salt);
 
       const newUser = {
         id: `user-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
@@ -143,6 +165,8 @@ router.post('/signup', async (req, res) => {
           endDate: null,
           history: []
         },
+        postsCount: 0,
+        invitesCount: 0,
         lastPostDate: null,
         createdAt: new Date().toISOString()
       };
@@ -232,7 +256,7 @@ router.get('/me', async (req, res) => {
   try {
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({ error: 'No authorization token provided.' });
+      return res.status(401).json({ error: 'Unauthorized. No token provided.' });
     }
 
     const token = authHeader.split(' ')[1];
@@ -241,18 +265,21 @@ router.get('/me', async (req, res) => {
     if (getIsMongoConnected()) {
       const user = await User.findById(decoded.id).select('-password');
       if (!user) return res.status(404).json({ error: 'User not found.' });
+
       if (checkSubscriptionExpiry(user)) {
         await user.save();
       }
-      const userObj = user.toObject ? user.toObject() : { ...user._doc };
-      return res.json({ user: userObj });
+
+      return res.json({ user });
     } else {
       const db = getFallbackDb();
-      const user = db.users.find(u => (u.id === decoded.id || u._id === decoded.id));
+      const user = db.users.find(u => u.id === decoded.id || u._id === decoded.id);
       if (!user) return res.status(404).json({ error: 'User not found.' });
+
       if (checkSubscriptionExpiry(user)) {
         saveFallbackDb();
       }
+
       const { password: _, ...userObj } = user;
       return res.json({ user: userObj });
     }
@@ -261,6 +288,7 @@ router.get('/me', async (req, res) => {
   }
 });
 
+// Update Profile (Sends Security Notification Email on Username or Email update)
 router.put('/profile', async (req, res) => {
   try {
     const authHeader = req.headers.authorization;
@@ -273,9 +301,11 @@ router.put('/profile', async (req, res) => {
 
     const {
       username,
+      email,
       epicTag,
       psnId,
       xboxId,
+      nintendoId,
       discordId,
       region,
       langPrimary,
@@ -290,18 +320,33 @@ router.put('/profile', async (req, res) => {
       const user = await User.findById(decoded.id);
       if (!user) return res.status(404).json({ error: 'User not found.' });
 
-      if (username && username.trim() !== user.username) {
+      const isChangingUsername = username && username.trim() !== user.username;
+      const isChangingEmail = email && email.toLowerCase().trim() !== user.email.toLowerCase();
+
+      if (isChangingUsername || isChangingEmail) {
         if (!currentPassword) {
-          return res.status(400).json({ error: 'You must provide your current password to change your username.' });
+          return res.status(400).json({ error: 'You must provide your current password to change your username or email.' });
         }
         const isMatch = await bcrypt.compare(currentPassword, user.password);
         if (!isMatch) {
           return res.status(401).json({ error: 'Incorrect current password.' });
         }
+      }
 
+      const oldUsername = user.username;
+      const oldEmail = user.email;
+
+      if (isChangingUsername) {
         const existing = await User.findOne({ username: { $regex: new RegExp(`^${username.trim()}$`, 'i') }, _id: { $ne: decoded.id } });
         if (existing) {
           return res.status(400).json({ error: 'Username is already taken.' });
+        }
+      }
+
+      if (isChangingEmail) {
+        const existingEmail = await User.findOne({ email: email.toLowerCase().trim(), _id: { $ne: decoded.id } });
+        if (existingEmail) {
+          return res.status(400).json({ error: 'This email is already in use by another account.' });
         }
       }
 
@@ -316,6 +361,7 @@ router.put('/profile', async (req, res) => {
         decoded.id,
         {
           ...(username && { username: username.trim() }),
+          ...(email && { email: email.toLowerCase().trim() }),
           ...(epicTag && { epicTag: epicTag.trim() }),
           ...(psnId !== undefined && { psnId: psnId.trim() }),
           ...(xboxId !== undefined && { xboxId: xboxId.trim() }),
@@ -331,6 +377,36 @@ router.put('/profile', async (req, res) => {
         { new: true }
       ).select('-password');
 
+      // Send Account Security Notification Emails
+      if (isChangingUsername) {
+        sendAccountUpdateEmail({
+          toEmail: user.email,
+          username: username.trim(),
+          updateType: 'username',
+          oldValue: oldUsername,
+          newValue: username.trim()
+        }).catch(err => console.warn('Account update email error:', err));
+      }
+
+      if (isChangingEmail) {
+        const newEmail = email.toLowerCase().trim();
+        sendAccountUpdateEmail({
+          toEmail: oldEmail,
+          username: user.username,
+          updateType: 'email',
+          oldValue: oldEmail,
+          newValue: newEmail
+        }).catch(err => console.warn('Account update email error:', err));
+
+        sendAccountUpdateEmail({
+          toEmail: newEmail,
+          username: user.username,
+          updateType: 'email',
+          oldValue: oldEmail,
+          newValue: newEmail
+        }).catch(err => console.warn('Account update email error:', err));
+      }
+
       return res.json({ user: updatedUser });
     } else {
       const db = getFallbackDb();
@@ -339,18 +415,35 @@ router.put('/profile', async (req, res) => {
 
       const user = db.users[idx];
 
-      if (username && username.trim() !== user.username) {
+      const isChangingUsername = username && username.trim() !== user.username;
+      const isChangingEmail = email && email.toLowerCase().trim() !== user.email.toLowerCase();
+
+      if (isChangingUsername || isChangingEmail) {
         if (!currentPassword) {
-          return res.status(400).json({ error: 'You must provide your current password to change your username.' });
+          return res.status(400).json({ error: 'You must provide your current password to change your username or email.' });
         }
         const isMatch = await bcrypt.compare(currentPassword, user.password);
         if (!isMatch) {
           return res.status(401).json({ error: 'Incorrect current password.' });
         }
+      }
+
+      const oldUsername = user.username;
+      const oldEmail = user.email;
+
+      if (isChangingUsername) {
         const trimmedUser = username.trim().toLowerCase();
         const existing = db.users.find(u => u.username.toLowerCase() === trimmedUser && u.id !== decoded.id && u._id !== decoded.id);
         if (existing) {
           return res.status(400).json({ error: 'Username is already taken.' });
+        }
+      }
+
+      if (isChangingEmail) {
+        const trimmedEmail = email.trim().toLowerCase();
+        const existingEmail = db.users.find(u => u.email.toLowerCase() === trimmedEmail && u.id !== decoded.id && u._id !== decoded.id);
+        if (existingEmail) {
+          return res.status(400).json({ error: 'This email is already in use by another account.' });
         }
       }
 
@@ -365,6 +458,7 @@ router.put('/profile', async (req, res) => {
       db.users[idx] = {
         ...db.users[idx],
         ...(username && { username: username.trim() }),
+        ...(email && { email: email.toLowerCase().trim() }),
         ...(epicTag && { epicTag: epicTag.trim() }),
         ...(psnId !== undefined && { psnId: psnId.trim() }),
         ...(xboxId !== undefined && { xboxId: xboxId.trim() }),
@@ -379,98 +473,141 @@ router.put('/profile', async (req, res) => {
       };
 
       saveFallbackDb();
+
+      // Send Account Security Notification Emails
+      if (isChangingUsername) {
+        sendAccountUpdateEmail({
+          toEmail: user.email,
+          username: username.trim(),
+          updateType: 'username',
+          oldValue: oldUsername,
+          newValue: username.trim()
+        }).catch(err => console.warn('Account update email error:', err));
+      }
+
+      if (isChangingEmail) {
+        const newEmail = email.toLowerCase().trim();
+        sendAccountUpdateEmail({
+          toEmail: oldEmail,
+          username: user.username,
+          updateType: 'email',
+          oldValue: oldEmail,
+          newValue: newEmail
+        }).catch(err => console.warn('Account update email error:', err));
+
+        sendAccountUpdateEmail({
+          toEmail: newEmail,
+          username: user.username,
+          updateType: 'email',
+          oldValue: oldEmail,
+          newValue: newEmail
+        }).catch(err => console.warn('Account update email error:', err));
+      }
+
       const { password: _, ...userObj } = db.users[idx];
       return res.json({ user: userObj });
     }
   } catch (err) {
-    console.error('Profile update error:', err);
-    res.status(500).json({ error: err.message || 'Failed to update profile.' });
+    console.error('Update profile error:', err);
+    res.status(500).json({ error: err.message || 'Internal server error while updating profile' });
   }
 });
 
+// 2. Request Password Reset (Sends Password Reset Email)
 router.post('/forgot-password', async (req, res) => {
   try {
     const { email } = req.body;
-    if (!email) return res.status(400).json({ error: 'Email is required.' });
+    if (!email) {
+      return res.status(400).json({ error: 'Please enter your registered email address.' });
+    }
 
-    const token = crypto.randomBytes(32).toString('hex');
-    const expiry = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
-    const baseUrl = process.env.FRONTEND_URL || `http://localhost:3000`;
+    const resetToken = `reset_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const resetExpires = new Date(Date.now() + 3600000); // 1 hour
 
     if (getIsMongoConnected()) {
       const user = await User.findOne({ email: email.toLowerCase().trim() });
       if (!user) {
-        return res.json({ message: 'If that email is registered, you will receive a reset link shortly.' });
+        return res.json({ message: 'If an account exists with this email, a reset link will be sent.' });
       }
-      user.resetToken = token;
-      user.resetTokenExpiry = expiry;
+
+      user.resetToken = resetToken;
+      user.resetTokenExpiry = resetExpires;
       await user.save();
+
+      await sendPasswordResetEmail(user.email, resetToken, user.username);
     } else {
       const db = getFallbackDb();
       const user = db.users.find(u => u.email.toLowerCase() === email.toLowerCase().trim());
       if (!user) {
-        return res.json({ message: 'If that email is registered, you will receive a reset link shortly.' });
+        return res.json({ message: 'If an account exists with this email, a reset link will be sent.' });
       }
-      user.resetToken = token;
-      user.resetTokenExpiry = expiry.toISOString();
+
+      user.resetToken = resetToken;
+      user.resetTokenExpiry = resetExpires.toISOString();
       saveFallbackDb();
+
+      await sendPasswordResetEmail(user.email, resetToken, user.username);
     }
 
-    const result = await sendPasswordResetEmail(email, token, baseUrl);
-
-    if (result.devMode) {
-      return res.json({
-        message: 'If that email is registered, you will receive a reset link shortly.',
-        devResetLink: result.resetLink  // Only sent in dev mode
-      });
-    }
-
-    return res.json({ message: 'If that email is registered, you will receive a reset link shortly.' });
+    res.json({ message: 'If an account exists with this email, a reset link will be sent.' });
   } catch (err) {
     console.error('Forgot password error:', err);
-    res.status(500).json({ error: 'Failed to send reset email. Please try again.' });
+    res.status(500).json({ error: 'Failed to process password reset request.' });
   }
 });
 
+// Reset Password with Token
 router.post('/reset-password', async (req, res) => {
   try {
     const { token, newPassword } = req.body;
     if (!token || !newPassword) {
       return res.status(400).json({ error: 'Token and new password are required.' });
     }
+
     if (newPassword.length < 6) {
-      return res.status(400).json({ error: 'Password must be at least 6 characters.' });
+      return res.status(400).json({ error: 'Password must be at least 6 characters long.' });
     }
 
-    const hashed = await bcrypt.hash(newPassword, 10);
-    const now = new Date();
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(newPassword, salt);
 
     if (getIsMongoConnected()) {
       const user = await User.findOne({
         resetToken: token,
-        resetTokenExpiry: { $gt: now }
+        resetTokenExpiry: { $gt: new Date() }
       });
-      if (!user) return res.status(400).json({ error: 'Reset link is invalid or has expired.' });
 
-      user.password = hashed;
+      if (!user) {
+        return res.status(400).json({ error: 'Invalid or expired password reset link.' });
+      }
+
+      user.password = hashedPassword;
       user.resetToken = null;
       user.resetTokenExpiry = null;
       await user.save();
+
+      return res.json({ message: 'Password has been reset successfully! You can now log in.' });
     } else {
       const db = getFallbackDb();
-      const user = db.users.find(u => u.resetToken === token && u.resetTokenExpiry && new Date(u.resetTokenExpiry) > now);
-      if (!user) return res.status(400).json({ error: 'Reset link is invalid or has expired.' });
+      const user = db.users.find(u =>
+        u.resetToken === token &&
+        new Date(u.resetTokenExpiry) > new Date()
+      );
 
-      user.password = hashed;
+      if (!user) {
+        return res.status(400).json({ error: 'Invalid or expired password reset link.' });
+      }
+
+      user.password = hashedPassword;
       user.resetToken = null;
       user.resetTokenExpiry = null;
       saveFallbackDb();
-    }
 
-    return res.json({ message: 'Password reset successfully! You can now log in.' });
+      return res.json({ message: 'Password has been reset successfully! You can now log in.' });
+    }
   } catch (err) {
     console.error('Reset password error:', err);
-    res.status(500).json({ error: 'Failed to reset password. Please try again.' });
+    res.status(500).json({ error: 'Failed to reset password.' });
   }
 });
 

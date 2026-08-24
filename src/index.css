@@ -3,24 +3,66 @@
    High-Polish, Dynamic & Clean Multi-Page Theme
    ========================================================================== */
 
-:root, [data-theme="dark"] {
+:root, [data-theme="light"] {
   --font-base: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-heading: 'Outfit', sans-serif;
 
-  /* Sleek Obsidian & Neon Purple Dark Theme */
-  --bg-app: #09090b;
-  --bg-surface: #121214;
-  --bg-card: #18181b;
-  --bg-card-hover: #1f1f23;
-  --bg-input: #0f0f11;
-  --bg-accent: rgba(168, 85, 247, 0.15);
+  /* Minimalist & Clean Light Theme (Default) */
+  --bg-app: #f8fafc;
+  --bg-surface: #ffffff;
+  --bg-card: #ffffff;
+  --bg-card-hover: #f1f5f9;
+  --bg-input: #f1f5f9;
+  --bg-accent: rgba(147, 51, 234, 0.08);
 
-  --border-color: #27272a;
+  --border-color: #e2e8f0;
+  --border-focus: #9333ea;
+
+  /* High contrast readable text */
+  --text-main: #0f172a;
+  --text-muted: #475569;
+  --text-dim: #64748b;
+
+  --primary: #9333ea;
+  --primary-hover: #7e22ce;
+  --primary-text: #ffffff;
+
+  /* Vibrant accents for light mode visibility */
+  --accent-purple: #7c3aed;
+  --accent-pink: #db2777;
+  --success: #059669;
+  --warning: #d97706;
+  --danger: #dc2626;
+
+  --color-psn: #2563eb;
+  --color-xbox: #16a34a;
+  --color-discord: #4f46e5;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-pill: 9999px;
+
+  --shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-glow: 0 4px 12px rgba(147, 51, 234, 0.12);
+  --transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+[data-theme="dark"] {
+  /* Sleek Modern Dark Slate Theme */
+  --bg-app: #0f172a;
+  --bg-surface: #1e293b;
+  --bg-card: #1e293b;
+  --bg-card-hover: #293548;
+  --bg-input: #0b1120;
+  --bg-accent: rgba(168, 85, 247, 0.18);
+
+  --border-color: #334155;
   --border-focus: #c084fc;
 
   --text-main: #f8fafc;
-  --text-muted: #a1a1aa;
-  --text-dim: #71717a;
+  --text-muted: #94a3b8;
+  --text-dim: #64748b;
 
   --primary: #a855f7;
   --primary-hover: #c084fc;
@@ -35,38 +77,8 @@
   --color-xbox: #22c55e;
   --color-discord: #6366f1;
 
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 16px;
-  --radius-pill: 9999px;
-
-  --shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+  --shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
   --shadow-glow: 0 0 25px rgba(168, 85, 247, 0.25);
-  --transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-[data-theme="light"] {
-  /* Ultra-Premium Light Theme (Frosted Glass & Vibrant Accents) */
-  --bg-app: #f8fafc;
-  --bg-surface: rgba(255, 255, 255, 0.9);
-  --bg-card: #ffffff;
-  --bg-card-hover: #f1f5f9;
-  --bg-input: #e2e8f0;
-  --bg-accent: rgba(126, 34, 206, 0.08);
-
-  --border-color: rgba(203, 213, 225, 0.8);
-  --border-focus: #9333ea;
-
-  --text-main: #0f172a;
-  --text-muted: #334155;
-  --text-dim: #64748b;
-
-  --primary: #7e22ce;
-  --primary-hover: #6b21a8;
-  --primary-text: #ffffff;
-  
-  --shadow: 0 4px 15px rgba(0, 0, 0, 0.04);
-  --shadow-glow: 0 0 25px rgba(126, 34, 206, 0.15);
 }
 
 *, *::before, *::after {
@@ -1104,8 +1116,8 @@ body {
 
 .player-card.has-incoming {
   animation: incomingPulse 2s infinite cubic-bezier(0.66, 0, 0, 1);
-  background: linear-gradient(180deg, rgba(30, 41, 59, 0.95), rgba(15, 23, 42, 0.98)),
-              linear-gradient(135deg, rgba(16, 185, 129, 0.3), rgba(59, 130, 246, 0.1));
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(59, 130, 246, 0.05));
+  background-color: var(--bg-card);
 }
 
 .card-header-bar {
@@ -1164,7 +1176,7 @@ body {
   width: 46px;
   height: 46px;
   border-radius: var(--radius-sm);
-  background: #1c2433;
+  background: var(--bg-input);
   object-fit: cover;
   flex-shrink: 0;
   border: 1px solid var(--border-color);
@@ -1186,7 +1198,7 @@ body {
   font-family: var(--font-heading);
   font-size: 1.05rem;
   font-weight: 700;
-  color: #ffffff;
+  color: var(--text-main);
 }
 
 .my-post-badge {
@@ -1224,7 +1236,7 @@ body {
   display: flex;
   flex-wrap: wrap;
   gap: 0.35rem;
-  background: rgba(10, 14, 22, 0.6);
+  background: var(--bg-input);
   padding: 0.4rem 0.5rem;
   border-radius: var(--radius-md);
   border: 1px solid var(--border-color);
@@ -1238,8 +1250,9 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
-  background: rgba(255, 255, 255, 0.06);
-  color: #ffffff;
+  background: var(--bg-surface);
+  color: var(--text-main);
+  border: 1px solid var(--border-color);
 }
 
 .gamer-id-pill.epic {
@@ -1249,27 +1262,27 @@ body {
 }
 
 .gamer-id-pill.psn {
-  background: rgba(0, 55, 145, 0.25);
-  border: 1px solid rgba(0, 55, 145, 0.5);
-  color: #60a5fa;
+  background: rgba(37, 99, 235, 0.1);
+  border: 1px solid rgba(37, 99, 235, 0.3);
+  color: var(--color-psn);
 }
 
 .gamer-id-pill.xbox {
-  background: rgba(16, 124, 16, 0.25);
-  border: 1px solid rgba(16, 124, 16, 0.5);
-  color: #4ade80;
+  background: rgba(22, 163, 74, 0.1);
+  border: 1px solid rgba(22, 163, 74, 0.3);
+  color: var(--color-xbox);
 }
 
 .gamer-id-pill.discord {
-  background: rgba(88, 101, 242, 0.2);
-  border: 1px solid rgba(88, 101, 242, 0.4);
-  color: #a5b4fc;
+  background: rgba(79, 70, 229, 0.1);
+  border: 1px solid rgba(79, 70, 229, 0.3);
+  color: var(--color-discord);
 }
 
 .gamer-id-pill.nintendo {
-  background: rgba(230, 0, 18, 0.2);
-  border: 1px solid rgba(230, 0, 18, 0.4);
-  color: #fca5a5;
+  background: rgba(220, 38, 38, 0.1);
+  border: 1px solid rgba(220, 38, 38, 0.3);
+  color: var(--danger);
 }
 
 .platform-prefix {
@@ -1529,4 +1542,21 @@ body {
 @keyframes slideIn {
   from { transform: translateX(30px); opacity: 0; }
   to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes urgentShake {
+  0% { transform: scale(1) rotate(0deg) translate3d(0, 0, 0); }
+  10% { transform: scale(1.1) rotate(-6deg) translate3d(-10px, 0, 0); }
+  20% { transform: scale(1.14) rotate(6deg) translate3d(10px, 0, 0); }
+  30% { transform: scale(1.14) rotate(-5deg) translate3d(-8px, 0, 0); }
+  40% { transform: scale(1.12) rotate(5deg) translate3d(8px, 0, 0); }
+  50% { transform: scale(1.1) rotate(-3deg) translate3d(-4px, 0, 0); }
+  60% { transform: scale(1.08) rotate(3deg) translate3d(4px, 0, 0); }
+  70% { transform: scale(1.04) rotate(-1deg) translate3d(-2px, 0, 0); }
+  80% { transform: scale(1.02) rotate(1deg) translate3d(2px, 0, 0); }
+  90%, 100% { transform: scale(1) rotate(0deg) translate3d(0, 0, 0); }
+}
+
+.chat-floating-shake {
+  animation: urgentShake 1.2s cubic-bezier(0.36, 0.07, 0.19, 0.97) infinite !important;
 }

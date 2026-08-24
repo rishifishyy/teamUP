@@ -33,6 +33,13 @@ const startCronJobs = () => {
           return true;
         });
 
+        // Also clean chat messages older than 15 mins
+        if (db.chatMessages) {
+          db.chatMessages = db.chatMessages.filter(msg => {
+            return new Date(msg.createdAt) >= freeCutoff;
+          });
+        }
+
         const deletedCount = initialCount - db.requests.length;
         if (deletedCount > 0) {
           saveFallbackDb();

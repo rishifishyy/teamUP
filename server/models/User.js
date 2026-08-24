@@ -86,6 +86,14 @@ const userSchema = new mongoose.Schema({
   avatarSeed: {
     type: String,
     default: ''
+  },
+  postsCount: {
+    type: Number,
+    default: 0
+  },
+  invitesCount: {
+    type: Number,
+    default: 0
   }
 }, {
   timestamps: true

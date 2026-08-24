@@ -60,6 +60,14 @@ export async function connectDB() {
 }
 
 export function getFallbackDb() {
+  try {
+    if (fs.existsSync(DATA_FILE)) {
+      const content = fs.readFileSync(DATA_FILE, 'utf-8');
+      fallbackDb = JSON.parse(content);
+    }
+  } catch (e) {
+    console.warn('Fallback DB read warning:', e.message);
+  }
   return fallbackDb;
 }
 

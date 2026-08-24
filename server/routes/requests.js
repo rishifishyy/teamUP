@@ -3,10 +3,9 @@ import jwt from 'jsonwebtoken';
 import { Request } from '../models/Request.js';
 import { User } from '../models/User.js';
 import { getFallbackDb, saveFallbackDb, getIsMongoConnected } from '../db.js';
-import { sendMatchNotificationEmail } from '../email.js';
 
 const router = express.Router();
-const JWT_SECRET = process.env.JWT_SECRET || 'teamup_jwt_secret_2026_super_secure';
+const JWT_SECRET = process.env.JWT_SECRET || 'fortnite_teamup_super_secret_jwt_key_2026_production';
 
 function getAuthUserId(req) {
   try {
@@ -78,41 +77,34 @@ router.post('/', async (req, res) => {
       userAge = user.age || 18;
       isUserPremium = Boolean(user.isPremium);
 
-      if (!user.isPremium) {
-        if (user.lastPostDate) {
-          const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-          if (new Date(user.lastPostDate) > sevenDaysAgo) {
-            const nextAvailable = new Date(new Date(user.lastPostDate).getTime() + 7 * 24 * 60 * 60 * 1000);
-            const daysLeft = Math.ceil((nextAvailable - Date.now()) / (1000 * 60 * 60 * 24));
-            return res.status(403).json({
-              error: `Free tier accounts can only post once every 7 days. (${daysLeft} day${daysLeft > 1 ? 's' : ''} remaining). Upgrade to Premium for unlimited broadcasts!`,
-              isCooldown: true
-            });
-          }
+      // 1. Free Tier Rule: Max 2 Lifetime Free Requests (Combined Posts + Invites)
+      if (!isUserPremium) {
+        const freeUsed = (user.postsCount || 0) + (user.invitesCount || 0);
+        if (freeUsed >= 2) {
+          return res.status(403).json({
+            error: 'Free tier limit reached: You have used your 2 free requests. Upgrade to VIP Premium for unlimited requests in the pool!',
+            isFreeLimitReached: true,
+            freeUsed,
+            freeLimit: 2
+          });
+        }
+
+        // Clean any previous lookup so free user has 1 active lookup
+        await Request.deleteMany({ userId });
+      } else {
+        // 2. Premium Tier Rule: Max 1 Active Lookup in the Pool at a time
+        const activePosts = await Request.find({ userId });
+        if (activePosts.length >= 1) {
+          return res.status(400).json({
+            error: 'You already have an active lookup in the pool. You cannot create another lookup until you delete your previous one.',
+            hasActiveLookup: true
+          });
         }
       }
 
+      user.postsCount = (user.postsCount || 0) + 1;
       user.lastPostDate = new Date();
       await user.save();
-
-      const activePosts = await Request.find({ userId });
-      if (user.isPremium) {
-        if (activePosts.length >= 2) {
-          return res.status(400).json({ error: 'You can only have 2 active teammate requests at a time. Please wait for them to expire or be accepted.' });
-        }
-        
-        if (activePosts.length === 1) {
-          const existing = activePosts[0];
-          const isDuplicate = existing.mainMode === mainMode && 
-                              (mainMode === 'Creative' ? existing.creativeType === creativeType : existing.teamSize === teamSize) &&
-                              (mainMode !== 'Creative' ? existing.buildType === buildType : true);
-          if (isDuplicate) {
-            return res.status(400).json({ error: 'Your new request must be different from your existing active request (e.g. different mode, team size, or build type).' });
-          }
-        }
-      } else {
-        await Request.deleteMany({ userId });
-      }
 
       const newRequest = await Request.create({
         userId,
@@ -137,7 +129,7 @@ router.post('/', async (req, res) => {
         note: note?.trim() || ''
       });
 
-      return res.status(201).json({ request: newRequest });
+      return res.status(201).json({ request: newRequest, postsCount: user.postsCount });
     } else {
       const db = getFallbackDb();
       const user = db.users.find(u => u.id === userId || u._id === userId);
@@ -146,41 +138,33 @@ router.post('/', async (req, res) => {
       userAge = user.age || 18;
       isUserPremium = Boolean(user.isPremium);
 
-      if (!user.isPremium) {
-        if (user.lastPostDate) {
-          const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-          const lastPost = new Date(user.lastPostDate);
-          if (lastPost > sevenDaysAgo) {
-            const nextAvailable = new Date(lastPost.getTime() + 7 * 24 * 60 * 60 * 1000);
-            const daysLeft = Math.ceil((nextAvailable - Date.now()) / (1000 * 60 * 60 * 24));
-            return res.status(403).json({
-              error: `Free tier accounts can only post once every 7 days. (${daysLeft} day${daysLeft > 1 ? 's' : ''} remaining). Upgrade to Premium for unlimited broadcasts!`,
-              isCooldown: true
-            });
-          }
+      // 1. Free Tier Rule: Max 2 Lifetime Free Requests (Combined Posts + Invites)
+      if (!isUserPremium) {
+        const freeUsed = (user.postsCount || 0) + (user.invitesCount || 0);
+        if (freeUsed >= 2) {
+          return res.status(403).json({
+            error: 'Free tier limit reached: You have used your 2 free requests. Upgrade to VIP Premium for unlimited requests in the pool!',
+            isFreeLimitReached: true,
+            freeUsed,
+            freeLimit: 2
+          });
         }
-      }
 
-      user.lastPostDate = new Date().toISOString();
-
-      const activePosts = db.requests.filter(r => r.userId === userId);
-      if (user.isPremium) {
-        if (activePosts.length >= 2) {
-          return res.status(400).json({ error: 'You can only have 2 active teammate requests at a time. Please wait for them to expire or be accepted.' });
-        }
-        
-        if (activePosts.length === 1) {
-          const existing = activePosts[0];
-          const isDuplicate = existing.mainMode === mainMode && 
-                              (mainMode === 'Creative' ? existing.creativeType === creativeType : existing.teamSize === teamSize) &&
-                              (mainMode !== 'Creative' ? existing.buildType === buildType : true);
-          if (isDuplicate) {
-            return res.status(400).json({ error: 'Your new request must be different from your existing active request (e.g. different mode, team size, or build type).' });
-          }
-        }
-      } else {
+        // Clean any previous lookup so free user has 1 active lookup
         db.requests = db.requests.filter(r => r.userId !== userId);
+      } else {
+        // 2. Premium Tier Rule: Max 1 Active Lookup in the Pool at a time
+        const activePosts = db.requests.filter(r => r.userId === userId);
+        if (activePosts.length >= 1) {
+          return res.status(400).json({
+            error: 'You already have an active lookup in the pool. You cannot create another lookup until you delete your previous one.',
+            hasActiveLookup: true
+          });
+        }
       }
+
+      user.postsCount = (user.postsCount || 0) + 1;
+      user.lastPostDate = new Date().toISOString();
 
       const newRequest = {
         id: `req-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
@@ -211,7 +195,7 @@ router.post('/', async (req, res) => {
       db.requests.unshift(newRequest);
       saveFallbackDb();
 
-      return res.status(201).json({ request: newRequest });
+      return res.status(201).json({ request: newRequest, postsCount: user.postsCount });
     }
   } catch (err) {
     console.error('Create request error:', err);

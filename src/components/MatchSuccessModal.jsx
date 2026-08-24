@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, Check, Copy, Gamepad2, MessageSquare, ShieldCheck, Zap, Sparkles } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
-export default function MatchSuccessModal({ isOpen, onClose, matchData, onCopy, showToast }) {
+export default function MatchSuccessModal({ isOpen, onClose, matchData, onCopy, showToast, onOpenChat }) {
   useEffect(() => {
     if (isOpen && matchData) {
       try {
@@ -178,12 +178,23 @@ export default function MatchSuccessModal({ isOpen, onClose, matchData, onCopy, 
           </div>
         </div>
 
-        <div className="modal-footer" style={{ justifyContent: 'center' }}>
+        <div className="modal-footer" style={{ justifyContent: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
           <button
             type="button"
             className="btn btn-primary"
+            onClick={() => {
+              onClose();
+              onOpenChat && onOpenChat();
+            }}
+            style={{ minWidth: '180px', background: 'linear-gradient(135deg, #2563eb, #1d4ed8)', borderColor: '#2563eb', color: '#fff', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '0.4rem', justifyContent: 'center' }}
+          >
+            <MessageSquare size={16} /> Open 15-Min Match Chat 💬
+          </button>
+          <button
+            type="button"
+            className="btn btn-outline"
             onClick={onClose}
-            style={{ minWidth: '200px', background: '#10b981', borderColor: '#10b981', color: '#fff', fontWeight: 800 }}
+            style={{ minWidth: '140px', fontWeight: 700 }}
           >
             <Check size={16} /> Ready to Play!
           </button>

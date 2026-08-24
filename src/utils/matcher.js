@@ -134,16 +134,24 @@ export function evaluateRequest(post, filters) {
 export function rankRequests(requests, filters, currentUser) {
   const userAge = currentUser ? (currentUser.age || 18) : 18;
   const isAdult = userAge >= 18;
+  const currentUserId = currentUser?.id || currentUser?._id;
 
-  const filteredRequests = requests.filter(r => {
+  const scored = requests.map(r => {
+    const evaluated = evaluateRequest(r, filters);
     const rAge = r.userAge || 18;
     const rIsAdult = rAge >= 18;
-    return isAdult === rIsAdult;
+    if (isAdult === rIsAdult) {
+      evaluated.matchScore += 5;
+    }
+    return evaluated;
   });
 
-  const scored = filteredRequests.map(r => evaluateRequest(r, filters));
-
   scored.sort((a, b) => {
+    const aIsMe = currentUserId && (a.userId === currentUserId);
+    const bIsMe = currentUserId && (b.userId === currentUserId);
+    if (aIsMe && !bIsMe) return -1;
+    if (!aIsMe && bIsMe) return 1;
+
     if (b.matchScore !== a.matchScore) {
       return b.matchScore - a.matchScore;
     }
