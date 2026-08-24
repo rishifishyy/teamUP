@@ -256,3 +256,64 @@ export async function sendInviteReceivedEmail(toEmail, toUsername, senderName, s
     return { success: false, error: err.message };
   }
 }
+
+// 5. Match Accepted Notification Email
+export async function sendInviteAcceptedEmail(toEmail, toUsername, matchedPlayerName, matchedPlayerEpic) {
+  const appUrl = getAppUrl();
+  const transporter = getTransporter();
+
+  if (!transporter) {
+    console.log(`\n📧 [DEV MODE] Match Accepted email would be sent to: ${toEmail} for match with ${matchedPlayerName}\n`);
+    return { success: true, devMode: true };
+  }
+
+  const mailOptions = {
+    from: getSenderEmail(),
+    to: toEmail,
+    subject: `🎉 TeamUP — Match Accepted! ${matchedPlayerName} accepted your request`,
+    html: `
+      <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 540px; margin: 0 auto; background: #0f0f1a; color: #e2e8f0; border-radius: 12px; overflow: hidden; border: 1px solid #2d2b42;">
+        <div style="background: linear-gradient(135deg, #10b981, #059669); padding: 28px 36px; text-align: center;">
+          <h1 style="margin: 0; font-size: 26px; font-weight: 900; color: #fff;">🎉 SQUAD MATCHED!</h1>
+          <p style="margin: 6px 0 0; color: rgba(255,255,255,0.9); font-size: 13px;">Your teammate request was accepted!</p>
+        </div>
+
+        <div style="padding: 32px 36px;">
+          <h2 style="margin: 0 0 10px; font-size: 19px; font-weight: 800; color: #34d399;">Hey ${toUsername}!</h2>
+          <p style="margin: 0 0 20px; color: #cbd5e1; font-size: 14px; line-height: 1.5;">
+            Great news! <strong>${matchedPlayerName}</strong> (Epic: <strong style="color: #60a5fa;">${matchedPlayerEpic || matchedPlayerName}</strong>) accepted your invite on TeamUP.
+          </p>
+
+          <div style="background: #181628; border: 1px solid #2d2b42; border-radius: 10px; padding: 18px 20px; margin: 18px 0;">
+            <div style="margin-bottom: 8px; font-size: 14px;">
+              <span style="color: #94a3b8;">🎮 Teammate Epic Tag:</span> <strong style="color: #60a5fa;">${matchedPlayerEpic || matchedPlayerName}</strong>
+            </div>
+            <div style="font-size: 13px; color: #94a3b8;">
+              A <strong>15-Minute Live Match Chat</strong> session has been opened between you and ${matchedPlayerName}.
+            </div>
+          </div>
+
+          <div style="text-align: center; margin: 24px 0 8px;">
+            <a href="${appUrl}" style="display: inline-block; background: linear-gradient(135deg, #10b981, #059669); color: #fff; text-decoration: none; padding: 12px 28px; border-radius: 8px; font-size: 14px; font-weight: 700;">
+              Open TeamUP Live Chat 💬
+            </a>
+          </div>
+        </div>
+
+        <div style="padding: 14px 36px; background: rgba(255,255,255,0.02); border-top: 1px solid rgba(255,255,255,0.06); text-align: center;">
+          <p style="margin: 0; color: #64748b; font-size: 12px;">© 2026 TeamUP · Jump on the Battle Bus!</p>
+        </div>
+      </div>
+    `
+  };
+
+  try {
+    const info = await transporter.sendMail(mailOptions);
+    console.log(`✅ Match accepted email sent to ${toEmail} (${info.messageId})`);
+    return { success: true, devMode: false };
+  } catch (err) {
+    console.error(`❌ Failed to send match accepted email to ${toEmail}:`, err.message);
+    return { success: false, error: err.message };
+  }
+}
+

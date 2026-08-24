@@ -9,16 +9,33 @@ const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'fortnite_teamup_super_secret_jwt_key_2026_production';
 const CHAT_LIFESPAN_MS = 15 * 60 * 1000; // 15 minutes
 
-function getAuthUserId(req) {
+function getAuthDecoded(req) {
   try {
     const authHeader = req.headers.authorization;
     if (authHeader && authHeader.startsWith('Bearer ')) {
       const token = authHeader.split(' ')[1];
-      const decoded = jwt.verify(token, JWT_SECRET);
-      return decoded.id;
+      return jwt.verify(token, JWT_SECRET);
     }
   } catch {}
   return null;
+}
+
+function getAuthUserId(req) {
+  const decoded = getAuthDecoded(req);
+  return decoded?.id || null;
+}
+
+function findFallbackUser(db, decodedOrId) {
+  if (!decodedOrId) return null;
+  const id = typeof decodedOrId === 'object' ? decodedOrId.id : decodedOrId;
+  const username = typeof decodedOrId === 'object' ? decodedOrId.username : null;
+  const email = typeof decodedOrId === 'object' ? decodedOrId.email : null;
+
+  return (db.users || []).find(u => 
+    (id && (String(u.id) === String(id) || String(u._id) === String(id))) ||
+    (username && u.username && u.username.toLowerCase() === String(username).toLowerCase()) ||
+    (email && u.email && u.email.toLowerCase() === String(email).toLowerCase())
+  );
 }
 
 // GET /api/chat/active-session (Guarantees BOTH players sync active and ended chat across all browsers & tabs)

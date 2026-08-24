@@ -4,21 +4,38 @@ import { MatchRequest } from '../models/MatchRequest.js';
 import { Request } from '../models/Request.js';
 import { User } from '../models/User.js';
 import { getFallbackDb, saveFallbackDb, getIsMongoConnected } from '../db.js';
-import { sendInviteReceivedEmail } from '../email.js';
+import { sendInviteReceivedEmail, sendInviteAcceptedEmail } from '../email.js';
 
 const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'fortnite_teamup_super_secret_jwt_key_2026_production';
 
-function getAuthUserId(req) {
+function getAuthDecoded(req) {
   try {
     const authHeader = req.headers.authorization;
     if (authHeader && authHeader.startsWith('Bearer ')) {
       const token = authHeader.split(' ')[1];
-      const decoded = jwt.verify(token, JWT_SECRET);
-      return decoded.id;
+      return jwt.verify(token, JWT_SECRET);
     }
   } catch {}
   return null;
+}
+
+function getAuthUserId(req) {
+  const decoded = getAuthDecoded(req);
+  return decoded?.id || null;
+}
+
+function findFallbackUser(db, decodedOrId) {
+  if (!decodedOrId) return null;
+  const id = typeof decodedOrId === 'object' ? decodedOrId.id : decodedOrId;
+  const username = typeof decodedOrId === 'object' ? decodedOrId.username : null;
+  const email = typeof decodedOrId === 'object' ? decodedOrId.email : null;
+
+  return (db.users || []).find(u => 
+    (id && (String(u.id) === String(id) || String(u._id) === String(id))) ||
+    (username && u.username && u.username.toLowerCase() === String(username).toLowerCase()) ||
+    (email && u.email && u.email.toLowerCase() === String(email).toLowerCase())
+  );
 }
 
 // Handler for sending match requests
@@ -97,7 +114,7 @@ async function handleSendMatchRequest(req, res) {
       return res.status(201).json({ success: true, message: 'Request sent!', invitesCount: sender.invitesCount });
     } else {
       const db = getFallbackDb();
-      const sender = db.users.find(u => String(u.id) === String(currentUserId) || String(u._id) === String(currentUserId));
+      const sender = findFallbackUser(db, getAuthDecoded(req) || currentUserId);
       if (!sender) return res.status(404).json({ error: 'User not found' });
 
       // 1. Free Tier Rule: Max 2 Lifetime Free Requests (Combined Posts + Invites)
@@ -268,6 +285,8 @@ router.post('/:matchId/accept', async (req, res) => {
       await matchReq.save();
 
       const sender = await User.findById(matchReq.fromUserId);
+      const receiver = await User.findById(currentUserId);
+
       // Remove BOTH receiver's post AND sender's earlier lookup from the pool
       await Request.deleteMany({ userId: { $in: [currentUserId, matchReq.fromUserId] } });
       
@@ -280,6 +299,16 @@ router.post('/:matchId/accept', async (req, res) => {
         { toUserId: matchReq.fromUserId, status: 'pending' },
         { status: 'declined' }
       );
+
+      // Send Email to Invite Sender
+      if (sender && sender.email) {
+        sendInviteAcceptedEmail(
+          sender.email,
+          sender.username,
+          receiver?.username || 'Your Teammate',
+          receiver?.epicTag || receiver?.username
+        ).catch(e => console.warn('Match accepted email error:', e));
+      }
 
       const matchedAt = matchReq.matchedAt;
       const expiresAt = new Date(new Date(matchedAt).getTime() + 15 * 60 * 1000).toISOString();
@@ -307,7 +336,8 @@ router.post('/:matchId/accept', async (req, res) => {
 
       matchReq.status = 'accepted';
       matchReq.matchedAt = new Date().toISOString();
-      const sender = db.users.find(u => String(u.id) === String(matchReq.fromUserId) || String(u._id) === String(matchReq.fromUserId));
+      const sender = findFallbackUser(db, matchReq.fromUserId);
+      const receiver = findFallbackUser(db, currentUserId);
       
       // Clean active posts for both receiver AND sender
       const removeIds = [String(currentUserId), String(matchReq.fromUserId)];
@@ -322,7 +352,17 @@ router.post('/:matchId/accept', async (req, res) => {
         }
       });
 
-      saveFallbackDb();
+      saveFallbackDb(db);
+
+      // Send Email to Invite Sender
+      if (sender && sender.email) {
+        sendInviteAcceptedEmail(
+          sender.email,
+          sender.username,
+          receiver?.username || 'Your Teammate',
+          receiver?.epicTag || receiver?.username
+        ).catch(e => console.warn('Match accepted email error:', e));
+      }
 
       const matchedAt = matchReq.matchedAt;
       const expiresAt = new Date(new Date(matchedAt).getTime() + 15 * 60 * 1000).toISOString();

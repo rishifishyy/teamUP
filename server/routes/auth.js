@@ -8,6 +8,19 @@ import { sendWelcomeEmail, sendPasswordResetEmail, sendAccountUpdateEmail } from
 const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'fortnite_teamup_super_secret_jwt_key_2026_production';
 
+function findFallbackUser(db, decodedOrId) {
+  if (!decodedOrId) return null;
+  const id = typeof decodedOrId === 'object' ? decodedOrId.id : decodedOrId;
+  const username = typeof decodedOrId === 'object' ? decodedOrId.username : null;
+  const email = typeof decodedOrId === 'object' ? decodedOrId.email : null;
+
+  return (db.users || []).find(u => 
+    (id && (String(u.id) === String(id) || String(u._id) === String(id))) ||
+    (username && u.username && u.username.toLowerCase() === String(username).toLowerCase()) ||
+    (email && u.email && u.email.toLowerCase() === String(email).toLowerCase())
+  );
+}
+
 function generateToken(user) {
   return jwt.sign(
     {
@@ -140,9 +153,10 @@ router.post('/signup', async (req, res) => {
       const salt = await bcrypt.genSalt(10);
       const hashedPassword = await bcrypt.hash(password, salt);
 
+      const userId = `user-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
       const newUser = {
-        id: `user-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-        _id: `user-${Date.now()}`,
+        id: userId,
+        _id: userId,
         username: username.trim(),
         email: email.toLowerCase().trim(),
         password: hashedPassword,
@@ -172,7 +186,7 @@ router.post('/signup', async (req, res) => {
       };
 
       db.users.push(newUser);
-      saveFallbackDb();
+      saveFallbackDb(db);
 
       sendWelcomeEmail(email.toLowerCase().trim(), username.trim()).catch(e => console.warn('Welcome email error:', e));
 
@@ -192,7 +206,7 @@ router.post('/login', async (req, res) => {
     const { loginOrEmail, password } = req.body;
 
     if (!loginOrEmail || !password) {
-      return res.status(400).json({ error: 'Please provide your Username/Email and Password.' });
+      return res.status(400).json({ error: 'Please enter your username/email and password.' });
     }
 
     if (getIsMongoConnected()) {
@@ -238,7 +252,7 @@ router.post('/login', async (req, res) => {
       }
 
       if (checkSubscriptionExpiry(user)) {
-        saveFallbackDb();
+        saveFallbackDb(db);
       }
 
       const token = generateToken(user);
@@ -273,11 +287,11 @@ router.get('/me', async (req, res) => {
       return res.json({ user });
     } else {
       const db = getFallbackDb();
-      const user = db.users.find(u => u.id === decoded.id || u._id === decoded.id);
+      const user = findFallbackUser(db, decoded);
       if (!user) return res.status(404).json({ error: 'User not found.' });
 
       if (checkSubscriptionExpiry(user)) {
-        saveFallbackDb();
+        saveFallbackDb(db);
       }
 
       const { password: _, ...userObj } = user;

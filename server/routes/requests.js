@@ -7,16 +7,33 @@ import { getFallbackDb, saveFallbackDb, getIsMongoConnected } from '../db.js';
 const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'fortnite_teamup_super_secret_jwt_key_2026_production';
 
-function getAuthUserId(req) {
+function getAuthDecoded(req) {
   try {
     const authHeader = req.headers.authorization;
     if (authHeader && authHeader.startsWith('Bearer ')) {
       const token = authHeader.split(' ')[1];
-      const decoded = jwt.verify(token, JWT_SECRET);
-      return decoded.id;
+      return jwt.verify(token, JWT_SECRET);
     }
   } catch {}
   return null;
+}
+
+function getAuthUserId(req) {
+  const decoded = getAuthDecoded(req);
+  return decoded?.id || null;
+}
+
+function findFallbackUser(db, decodedOrId) {
+  if (!decodedOrId) return null;
+  const id = typeof decodedOrId === 'object' ? decodedOrId.id : decodedOrId;
+  const username = typeof decodedOrId === 'object' ? decodedOrId.username : null;
+  const email = typeof decodedOrId === 'object' ? decodedOrId.email : null;
+
+  return (db.users || []).find(u => 
+    (id && (String(u.id) === String(id) || String(u._id) === String(id))) ||
+    (username && u.username && u.username.toLowerCase() === String(username).toLowerCase()) ||
+    (email && u.email && u.email.toLowerCase() === String(email).toLowerCase())
+  );
 }
 
 router.get('/', async (req, res) => {
@@ -132,9 +149,10 @@ router.post('/', async (req, res) => {
       return res.status(201).json({ request: newRequest, postsCount: user.postsCount });
     } else {
       const db = getFallbackDb();
-      const user = db.users.find(u => u.id === userId || u._id === userId);
+      const user = findFallbackUser(db, getAuthDecoded(req) || userId);
       if (!user) return res.status(404).json({ error: 'User not found' });
 
+      const realUserId = String(user.id || user._id);
       userAge = user.age || 18;
       isUserPremium = Boolean(user.isPremium);
 
@@ -151,10 +169,10 @@ router.post('/', async (req, res) => {
         }
 
         // Clean any previous lookup so free user has 1 active lookup
-        db.requests = db.requests.filter(r => r.userId !== userId);
+        db.requests = (db.requests || []).filter(r => String(r.userId) !== realUserId);
       } else {
         // 2. Premium Tier Rule: Max 1 Active Lookup in the Pool at a time
-        const activePosts = db.requests.filter(r => r.userId === userId);
+        const activePosts = (db.requests || []).filter(r => String(r.userId) === realUserId);
         if (activePosts.length >= 1) {
           return res.status(400).json({
             error: 'You already have an active lookup in the pool. You cannot create another lookup until you delete your previous one.',
@@ -166,10 +184,11 @@ router.post('/', async (req, res) => {
       user.postsCount = (user.postsCount || 0) + 1;
       user.lastPostDate = new Date().toISOString();
 
+      const reqId = `req-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
       const newRequest = {
-        id: `req-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-        _id: `req-${Date.now()}`,
-        userId,
+        id: reqId,
+        _id: reqId,
+        userId: realUserId,
         username: user.username,
         gamertag: gamertag.trim(),
         epicTag: (epicTag || gamertag).trim(),
@@ -192,8 +211,9 @@ router.post('/', async (req, res) => {
         createdAt: new Date().toISOString()
       };
 
+      db.requests = db.requests || [];
       db.requests.unshift(newRequest);
-      saveFallbackDb();
+      saveFallbackDb(db);
 
       return res.status(201).json({ request: newRequest, postsCount: user.postsCount });
     }

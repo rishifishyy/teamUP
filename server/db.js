@@ -11,7 +11,8 @@ const DATA_FILE = path.join(DATA_DIR, 'db_fallback.json');
 let fallbackDb = {
   users: [],
   requests: [],
-  matchRequests: []
+  matchRequests: [],
+  chatMessages: []
 };
 
 function initFallbackDb() {
@@ -30,8 +31,16 @@ function initFallbackDb() {
   }
 }
 
-export function saveFallbackDb() {
+export function saveFallbackDb(data) {
   try {
+    if (data) {
+      fallbackDb = data;
+    }
+    if (!fallbackDb.users) fallbackDb.users = [];
+    if (!fallbackDb.requests) fallbackDb.requests = [];
+    if (!fallbackDb.matchRequests) fallbackDb.matchRequests = [];
+    if (!fallbackDb.chatMessages) fallbackDb.chatMessages = [];
+
     if (!fs.existsSync(DATA_DIR)) {
       fs.mkdirSync(DATA_DIR, { recursive: true });
     }
@@ -68,6 +77,10 @@ export function getFallbackDb() {
   } catch (e) {
     console.warn('Fallback DB read warning:', e.message);
   }
+  if (!fallbackDb.users) fallbackDb.users = [];
+  if (!fallbackDb.requests) fallbackDb.requests = [];
+  if (!fallbackDb.matchRequests) fallbackDb.matchRequests = [];
+  if (!fallbackDb.chatMessages) fallbackDb.chatMessages = [];
   return fallbackDb;
 }
 
