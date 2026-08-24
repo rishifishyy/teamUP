@@ -1,23 +1,44 @@
 import nodemailer from 'nodemailer';
 
 function getTransporter() {
-  const user = process.env.EMAIL_USER;
-  const pass = process.env.EMAIL_PASS;
-  const isMock = !user || user === 'your_gmail@gmail.com' || !pass || pass === 'your_gmail_app_password';
+  const rawUser = process.env.EMAIL_USER;
+  const rawPass = process.env.EMAIL_PASS;
 
-  if (isMock) {
+  if (!rawUser || !rawPass) {
+    console.log('⚠️ [EMAIL] EMAIL_USER or EMAIL_PASS not set in environment.');
+    return null;
+  }
+
+  const user = rawUser.trim().replace(/^["']|["']$/g, '');
+  const pass = rawPass.trim().replace(/^["']|["']$/g, '').replace(/\s+/g, '');
+
+  if (user === 'your_gmail@gmail.com' || pass === 'your_gmail_app_password') {
     return null;
   }
 
   return nodemailer.createTransport({
-    service: 'gmail',
+    host: 'smtp.gmail.com',
+    port: 465,
+    secure: true,
     auth: { user, pass }
   });
 }
 
+function getAppUrl() {
+  if (process.env.APP_URL) return process.env.APP_URL.replace(/\/$/, '');
+  if (process.env.RENDER_EXTERNAL_URL) return process.env.RENDER_EXTERNAL_URL.replace(/\/$/, '');
+  return 'http://localhost:3000';
+}
+
+function getSenderEmail() {
+  const user = process.env.EMAIL_USER?.trim().replace(/^["']|["']$/g, '');
+  return process.env.EMAIL_FROM || (user ? `TeamUP <${user}>` : 'TeamUP <noreply@teamup.gg>');
+}
+
 // 1. Forgot Password Email
 export async function sendPasswordResetEmail(toEmail, resetToken, username = 'Player') {
-  const resetLink = `http://localhost:3000/reset-password?token=${resetToken}`;
+  const appUrl = getAppUrl();
+  const resetLink = `${appUrl}/reset-password?token=${resetToken}`;
   const transporter = getTransporter();
 
   if (!transporter) {
@@ -27,7 +48,7 @@ export async function sendPasswordResetEmail(toEmail, resetToken, username = 'Pl
   }
 
   const mailOptions = {
-    from: process.env.EMAIL_FROM || `TeamUP <${process.env.EMAIL_USER}>`,
+    from: getSenderEmail(),
     to: toEmail,
     subject: '🎮 TeamUP — Reset Your Password',
     html: `
@@ -52,13 +73,19 @@ export async function sendPasswordResetEmail(toEmail, resetToken, username = 'Pl
     `
   };
 
-  const info = await transporter.sendMail(mailOptions);
-  console.log(`✅ Password reset email sent to ${toEmail} (${info.messageId})`);
-  return { success: true, devMode: false };
+  try {
+    const info = await transporter.sendMail(mailOptions);
+    console.log(`✅ Password reset email sent to ${toEmail} (${info.messageId})`);
+    return { success: true, devMode: false };
+  } catch (err) {
+    console.error(`❌ Failed to send password reset email to ${toEmail}:`, err.message);
+    return { success: false, error: err.message };
+  }
 }
 
 // 2. Signup / Welcome Email
 export async function sendWelcomeEmail(toEmail, username) {
+  const appUrl = getAppUrl();
   const transporter = getTransporter();
 
   if (!transporter) {
@@ -67,7 +94,7 @@ export async function sendWelcomeEmail(toEmail, username) {
   }
 
   const mailOptions = {
-    from: process.env.EMAIL_FROM || `TeamUP <${process.env.EMAIL_USER}>`,
+    from: getSenderEmail(),
     to: toEmail,
     subject: `🎉 Welcome to TeamUP, ${username}! Find Your Fortnite Squad`,
     html: `
@@ -84,7 +111,7 @@ export async function sendWelcomeEmail(toEmail, username) {
           </p>
 
           <div style="text-align: center; margin: 28px 0 12px;">
-            <a href="http://localhost:3000" style="display: inline-block; background: linear-gradient(135deg, #7c3aed, #4f46e5); color: #fff; text-decoration: none; padding: 13px 32px; border-radius: 8px; font-size: 15px; font-weight: 700;">
+            <a href="${appUrl}" style="display: inline-block; background: linear-gradient(135deg, #7c3aed, #4f46e5); color: #fff; text-decoration: none; padding: 13px 32px; border-radius: 8px; font-size: 15px; font-weight: 700;">
               Launch Teammate Finder 🚀
             </a>
           </div>
@@ -102,13 +129,14 @@ export async function sendWelcomeEmail(toEmail, username) {
     console.log(`✅ Welcome email sent to ${toEmail} (${info.messageId})`);
     return { success: true, devMode: false };
   } catch (err) {
-    console.warn(`⚠️ Failed to send welcome email to ${toEmail}:`, err.message);
+    console.error(`❌ Failed to send welcome email to ${toEmail}:`, err.message);
     return { success: false, error: err.message };
   }
 }
 
 // 3. Username / Email Update Security Notification Email
 export async function sendAccountUpdateEmail({ toEmail, username, updateType, oldValue, newValue }) {
+  const appUrl = getAppUrl();
   const transporter = getTransporter();
 
   if (!transporter) {
@@ -123,7 +151,7 @@ export async function sendAccountUpdateEmail({ toEmail, username, updateType, ol
     : `Your TeamUP username has been successfully changed from <strong>${oldValue}</strong> to <strong>${newValue}</strong>.`;
 
   const mailOptions = {
-    from: process.env.EMAIL_FROM || `TeamUP <${process.env.EMAIL_USER}>`,
+    from: getSenderEmail(),
     to: toEmail,
     subject: `🔐 TeamUP — Account Security: ${title}`,
     html: `
@@ -144,7 +172,7 @@ export async function sendAccountUpdateEmail({ toEmail, username, updateType, ol
             If you did not perform this change, please log into your account immediately and reset your password.
           </div>
           <div style="text-align: center; margin: 24px 0 10px;">
-            <a href="http://localhost:3000" style="display: inline-block; background: linear-gradient(135deg, #2563eb, #7c3aed); color: #fff; text-decoration: none; padding: 12px 28px; border-radius: 8px; font-size: 14px; font-weight: 700;">
+            <a href="${appUrl}" style="display: inline-block; background: linear-gradient(135deg, #2563eb, #7c3aed); color: #fff; text-decoration: none; padding: 12px 28px; border-radius: 8px; font-size: 14px; font-weight: 700;">
               Go to TeamUP
             </a>
           </div>
@@ -161,13 +189,14 @@ export async function sendAccountUpdateEmail({ toEmail, username, updateType, ol
     console.log(`✅ Account update email sent to ${toEmail} (${info.messageId})`);
     return { success: true, devMode: false };
   } catch (err) {
-    console.warn(`⚠️ Failed to send account update email to ${toEmail}:`, err.message);
+    console.error(`❌ Failed to send account update email to ${toEmail}:`, err.message);
     return { success: false, error: err.message };
   }
 }
 
 // 4. Invite / Match Request Received Notification Email
 export async function sendInviteReceivedEmail(toEmail, toUsername, senderName, senderEpic, matchDetails) {
+  const appUrl = getAppUrl();
   const transporter = getTransporter();
 
   if (!transporter) {
@@ -176,7 +205,7 @@ export async function sendInviteReceivedEmail(toEmail, toUsername, senderName, s
   }
 
   const mailOptions = {
-    from: process.env.EMAIL_FROM || `TeamUP <${process.env.EMAIL_USER}>`,
+    from: getSenderEmail(),
     to: toEmail,
     subject: `🎯 TeamUP — New Squad Invite from ${senderEpic || senderName}!`,
     html: `
@@ -205,7 +234,7 @@ export async function sendInviteReceivedEmail(toEmail, toUsername, senderName, s
           </div>
 
           <div style="text-align: center; margin: 24px 0 8px;">
-            <a href="http://localhost:3000" style="display: inline-block; background: linear-gradient(135deg, #10b981, #059669); color: #fff; text-decoration: none; padding: 12px 28px; border-radius: 8px; font-size: 14px; font-weight: 700;">
+            <a href="${appUrl}" style="display: inline-block; background: linear-gradient(135deg, #10b981, #059669); color: #fff; text-decoration: none; padding: 12px 28px; border-radius: 8px; font-size: 14px; font-weight: 700;">
               View & Accept Invite on TeamUP 🎮
             </a>
           </div>
@@ -223,7 +252,7 @@ export async function sendInviteReceivedEmail(toEmail, toUsername, senderName, s
     console.log(`✅ Invite notification email sent to ${toEmail} (${info.messageId})`);
     return { success: true, devMode: false };
   } catch (err) {
-    console.warn(`⚠️ Failed to send invite notification email to ${toEmail}:`, err.message);
+    console.error(`❌ Failed to send invite notification email to ${toEmail}:`, err.message);
     return { success: false, error: err.message };
   }
 }

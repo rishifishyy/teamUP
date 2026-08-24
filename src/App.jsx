@@ -112,8 +112,16 @@ export default function App() {
       if (user) {
         setCurrentUser(user);
         localStorage.setItem('teamup_user_profile', JSON.stringify(user));
+      } else {
+        localStorage.removeItem('teamup_token');
+        localStorage.removeItem('teamup_user_profile');
+        setCurrentUser(null);
       }
-    } catch {}
+    } catch {
+      localStorage.removeItem('teamup_token');
+      localStorage.removeItem('teamup_user_profile');
+      setCurrentUser(null);
+    }
   };
 
   const fetchRequests = async () => {
@@ -387,6 +395,16 @@ export default function App() {
       fetchRequests();
     } catch (err) {
       const msg = err.message || '';
+      if (msg.includes('User not found') || msg.includes('Unauthorized') || msg.includes('logged in')) {
+        localStorage.removeItem('teamup_token');
+        localStorage.removeItem('teamup_user_profile');
+        setCurrentUser(null);
+        setIsPostModalOpen(false);
+        setAuthInitialTab('login');
+        setIsAuthModalOpen(true);
+        showToast('Session expired or account was reset. Please log in or register.', 'info');
+        return;
+      }
       if (err.isFreeLimitReached || msg.includes('Free tier') || msg.includes('free requests') || msg.includes('Upgrade to VIP') || msg.includes('403')) {
         setIsPostModalOpen(false);
         setIsPremiumModalOpen(true);
@@ -444,6 +462,16 @@ export default function App() {
       fetchRequests();
     } catch (err) {
       const msg = err.message || '';
+      if (msg.includes('User not found') || msg.includes('Unauthorized') || msg.includes('logged in')) {
+        localStorage.removeItem('teamup_token');
+        localStorage.removeItem('teamup_user_profile');
+        setCurrentUser(null);
+        setIsSendInviteModalOpen(false);
+        setAuthInitialTab('login');
+        setIsAuthModalOpen(true);
+        showToast('Session expired or account was reset. Please log in or register.', 'info');
+        return;
+      }
       if (err.isFreeLimitReached || msg.includes('Free tier') || msg.includes('free requests') || msg.includes('Upgrade to VIP') || msg.includes('403')) {
         setIsSendInviteModalOpen(false);
         setIsPremiumModalOpen(true);
