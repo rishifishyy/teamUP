@@ -32,6 +32,15 @@ async function safeJson(res, defaultError = 'Request failed') {
 }
 
 export const api = {
+  async sendRegistrationOtp(userData) {
+    const res = await fetch(`${API_BASE}/auth/send-registration-otp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(userData)
+    });
+    return safeJson(res, 'Failed to send verification code');
+  },
+
   async signup(userData) {
     const res = await fetch(`${API_BASE}/auth/signup`, {
       method: 'POST',

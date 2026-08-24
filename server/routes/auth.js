@@ -3,15 +3,84 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { getFallbackDb, saveFallbackDb, getIsMongoConnected } from '../db.js';
 import { User } from '../models/User.js';
-import { sendWelcomeEmail, sendPasswordResetEmail, sendAccountUpdateEmail, testEmailTransporter } from '../email.js';
+import { sendWelcomeEmail, sendPasswordResetEmail, sendAccountUpdateEmail, sendRegistrationOtpEmail, testEmailTransporter } from '../email.js';
 
 const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'fortnite_teamup_super_secret_jwt_key_2026_production';
+
+// In-memory store for registration OTPs (10-minute expiry)
+const registrationOtps = new Map();
 
 router.get('/test-email', async (req, res) => {
   const to = req.query.to || process.env.EMAIL_USER || 'rishinehra1@gmail.com';
   const result = await testEmailTransporter(to);
   res.json(result);
+});
+
+// Send 6-digit Registration OTP to User Email
+router.post('/send-registration-otp', async (req, res) => {
+  try {
+    const { username, email, epicTag, age } = req.body || {};
+    if (!username || !email || !epicTag) {
+      return res.status(400).json({ error: 'Please provide Username, Email, and Epic Games Tag.' });
+    }
+    if (age && parseInt(age, 10) < 13) {
+      return res.status(400).json({ error: 'You must be at least 13 years old to join TeamUP.' });
+    }
+
+    const normEmail = email.toLowerCase().trim();
+    const normUsername = username.trim();
+    const normEpic = epicTag.trim();
+
+    if (getIsMongoConnected()) {
+      const existingUser = await User.findOne({
+        $or: [
+          { email: normEmail },
+          { username: normUsername }
+        ]
+      });
+      if (existingUser) {
+        if (existingUser.email.toLowerCase() === normEmail) {
+          return res.status(400).json({ error: 'An account with this email already exists.' });
+        }
+        return res.status(400).json({ error: 'Username is already taken. Please choose another.' });
+      }
+
+      const existingEpic = await User.findOne({ epicTag: normEpic });
+      if (existingEpic) {
+        return res.status(400).json({ error: 'This Epic Games Tag is already linked to an existing account.' });
+      }
+    } else {
+      const db = getFallbackDb();
+      const existingUser = (db.users || []).find(u =>
+        u.email.toLowerCase() === normEmail ||
+        u.username.toLowerCase() === normUsername.toLowerCase()
+      );
+      if (existingUser) {
+        if (existingUser.email.toLowerCase() === normEmail) {
+          return res.status(400).json({ error: 'An account with this email already exists.' });
+        }
+        return res.status(400).json({ error: 'Username is already taken. Please choose another.' });
+      }
+
+      const existingEpic = (db.users || []).find(u => u.epicTag && u.epicTag.toLowerCase() === normEpic.toLowerCase());
+      if (existingEpic) {
+        return res.status(400).json({ error: 'This Epic Games Tag is already linked to an existing account.' });
+      }
+    }
+
+    // Generate 6-digit numeric OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes
+
+    registrationOtps.set(normEmail, { otp, expiresAt, username: normUsername });
+
+    await sendRegistrationOtpEmail(normEmail, normUsername, otp);
+    return res.json({ success: true, message: `Verification code sent to ${normEmail}` });
+  } catch (err) {
+    console.error('Send registration OTP error:', err);
+    return res.status(500).json({ error: 'Failed to send verification code. Please try again.' });
+  }
 });
 
 function findFallbackUser(db, decodedOrId) {
@@ -50,10 +119,11 @@ function checkSubscriptionExpiry(user) {
   return false;
 }
 
-// 1. Sign Up Route (Sends Welcome Email)
+// 1. Sign Up Route (Verifies OTP & Creates Account)
 router.post('/signup', async (req, res) => {
   try {
     const {
+      otp,
       username,
       email,
       password,
@@ -74,6 +144,25 @@ router.post('/signup', async (req, res) => {
     if (!username || !email || !password || !epicTag || !age || !gender) {
       return res.status(400).json({ error: 'Please fill in all required fields (Username, Email, Password, Epic Games Tag, Age, Gender).' });
     }
+
+    if (!otp) {
+      return res.status(400).json({ error: 'Please enter the 6-digit verification code sent to your email.' });
+    }
+
+    const normEmail = email.toLowerCase().trim();
+    const storedOtpData = registrationOtps.get(normEmail);
+
+    if (!storedOtpData || storedOtpData.otp !== String(otp).trim()) {
+      return res.status(400).json({ error: 'Invalid verification code. Please check your email or request a new code.' });
+    }
+
+    if (Date.now() > storedOtpData.expiresAt) {
+      registrationOtps.delete(normEmail);
+      return res.status(400).json({ error: 'Verification code has expired. Please request a new one.' });
+    }
+
+    // OTP Verified! Remove from map
+    registrationOtps.delete(normEmail);
 
     if (parseInt(age, 10) < 13) {
       return res.status(400).json({ error: 'You must be at least 13 years old to join TeamUP.' });

@@ -338,3 +338,42 @@ export async function sendInviteAcceptedEmail(toEmail, toUsername, matchedPlayer
 
   return sendRawEmail({ to: toEmail, subject: `🎉 TeamUP — Match Accepted! ${matchedPlayerName} accepted your request`, html });
 }
+
+// 6. Registration OTP Verification Email
+export async function sendRegistrationOtpEmail(toEmail, username, otp) {
+  const html = `
+    <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 520px; margin: 0 auto; background: #0f0f1a; color: #e2e8f0; border-radius: 12px; overflow: hidden; border: 1px solid #2d2b42;">
+      <div style="background: linear-gradient(135deg, #7c3aed, #4f46e5); padding: 28px 36px; text-align: center;">
+        <h1 style="margin: 0; font-size: 26px; font-weight: 900; color: #fff;">🎮 TeamUP</h1>
+        <p style="margin: 6px 0 0; color: rgba(255,255,255,0.85); font-size: 13px;">Email Verification Code</p>
+      </div>
+
+      <div style="padding: 32px 36px; text-align: center;">
+        <h2 style="margin: 0 0 10px; font-size: 20px; font-weight: 800; color: #c4b5fd;">Verify Your Email, ${username}!</h2>
+        <p style="margin: 0 0 24px; color: #94a3b8; font-size: 14px; line-height: 1.5;">
+          Use the 6-digit verification code below to complete your TeamUP registration.
+        </p>
+
+        <div style="background: #181628; border: 2px dashed #7c3aed; border-radius: 12px; padding: 20px; margin: 24px 0; display: inline-block; min-width: 240px;">
+          <div style="font-size: 36px; font-weight: 900; letter-spacing: 8px; color: #fbbf24; font-family: 'Courier New', monospace;">
+            ${otp}
+          </div>
+        </div>
+
+        <p style="margin: 20px 0 0; color: #64748b; font-size: 13px;">
+          ⏱️ This code will expire in <strong>10 minutes</strong>.
+        </p>
+        <p style="margin: 6px 0 0; color: #64748b; font-size: 12px;">
+          If you did not request this code, please ignore this email.
+        </p>
+      </div>
+
+      <div style="padding: 14px 36px; background: rgba(255,255,255,0.02); border-top: 1px solid rgba(255,255,255,0.06); text-align: center;">
+        <p style="margin: 0; color: #64748b; font-size: 12px;">© 2026 TeamUP · Jump on the Battle Bus!</p>
+      </div>
+    </div>
+  `;
+
+  return sendRawEmail({ to: toEmail, subject: `🔐 TeamUP Verification Code: ${otp}`, html });
+}
+

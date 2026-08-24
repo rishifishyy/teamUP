@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Lock, Mail, User, Gamepad2, AlertCircle, Eye, EyeOff } from 'lucide-react';
+import { X, Lock, Mail, User, Gamepad2, AlertCircle, Eye, EyeOff, KeyRound, ArrowLeft, RefreshCw, CheckCircle2 } from 'lucide-react';
 import { api } from '../services/api';
 
 export default function AuthModal({ isOpen, onClose, initialMode = 'login', onAuthSuccess, showToast }) {
@@ -27,6 +27,13 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login', onAu
   });
   const [showSignupPassword, setShowSignupPassword] = useState(false);
 
+  // OTP Verification state
+  const [isOtpStep, setIsOtpStep] = useState(false);
+  const [otpDigits, setOtpDigits] = useState(['', '', '', '', '', '']);
+  const [resendTimer, setResendTimer] = useState(0);
+  const [isResending, setIsResending] = useState(false);
+  const otpInputRefs = useRef([]);
+
   // Forgot password form state
   const [forgotEmail, setForgotEmail] = useState('');
   const [forgotSent, setForgotSent] = useState(false);
@@ -36,7 +43,22 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login', onAu
     setError(null);
     setShowLoginPassword(false);
     setShowSignupPassword(false);
+    setIsOtpStep(false);
+    setOtpDigits(['', '', '', '', '', '']);
   }, [initialMode, isOpen]);
+
+  // Resend OTP countdown timer
+  useEffect(() => {
+    let interval = null;
+    if (resendTimer > 0) {
+      interval = setInterval(() => {
+        setResendTimer(prev => prev - 1);
+      }, 1000);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [resendTimer]);
 
   if (!isOpen) return null;
 
@@ -54,7 +76,8 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login', onAu
     }
   };
 
-  const handleSignupSubmit = async (e) => {
+  // Step 1: Validate Details and Send OTP
+  const handleInitiateSignup = async (e) => {
     e.preventDefault();
     setError(null);
 
@@ -70,16 +93,115 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login', onAu
 
     setLoading(true);
     try {
+      await api.sendRegistrationOtp({
+        username: signupData.username.trim(),
+        email: signupData.email.toLowerCase().trim(),
+        epicTag: signupData.epicTag.trim(),
+        age: signupData.age,
+        gender: signupData.gender
+      });
+
+      setIsOtpStep(true);
+      setResendTimer(60);
+      setOtpDigits(['', '', '', '', '', '']);
+      showToast && showToast(`Verification code sent to ${signupData.email}!`, 'success');
+      setTimeout(() => {
+        if (otpInputRefs.current[0]) {
+          otpInputRefs.current[0].focus();
+        }
+      }, 100);
+    } catch (err) {
+      setError(err.message || 'Failed to send verification code. Please check your details.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Step 2: Verify OTP and Create Account
+  const handleVerifyOtpAndSignup = async (e) => {
+    e.preventDefault();
+    setError(null);
+
+    const enteredOtp = otpDigits.join('').trim();
+    if (enteredOtp.length !== 6) {
+      setError('Please enter all 6 digits of the verification code.');
+      return;
+    }
+
+    setLoading(true);
+    try {
       const payload = {
         ...signupData,
+        otp: enteredOtp,
         avatarSeed: signupData.avatarSeed || signupData.username
       };
       await onAuthSuccess('signup', payload);
       onClose();
+      showToast && showToast('🎉 Welcome to TeamUP! Account verified successfully.', 'success');
     } catch (err) {
-      setError(err.message || 'Signup failed. Please check your details.');
+      setError(err.message || 'Invalid or expired verification code.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Handle Resend OTP
+  const handleResendOtp = async () => {
+    if (resendTimer > 0 || isResending) return;
+    setError(null);
+    setIsResending(true);
+    try {
+      await api.sendRegistrationOtp({
+        username: signupData.username.trim(),
+        email: signupData.email.toLowerCase().trim(),
+        epicTag: signupData.epicTag.trim(),
+        age: signupData.age,
+        gender: signupData.gender
+      });
+      setResendTimer(60);
+      setOtpDigits(['', '', '', '', '', '']);
+      showToast && showToast(`New code sent to ${signupData.email}!`, 'success');
+      if (otpInputRefs.current[0]) {
+        otpInputRefs.current[0].focus();
+      }
+    } catch (err) {
+      setError(err.message || 'Failed to resend code.');
+    } finally {
+      setIsResending(false);
+    }
+  };
+
+  // Handle digit input & auto-focus
+  const handleOtpChange = (index, value) => {
+    const digit = value.replace(/\D/g, '').slice(-1);
+    const newDigits = [...otpDigits];
+    newDigits[index] = digit;
+    setOtpDigits(newDigits);
+
+    if (digit && index < 5 && otpInputRefs.current[index + 1]) {
+      otpInputRefs.current[index + 1].focus();
+    }
+  };
+
+  const handleOtpKeyDown = (index, e) => {
+    if (e.key === 'Backspace' && !otpDigits[index] && index > 0 && otpInputRefs.current[index - 1]) {
+      otpInputRefs.current[index - 1].focus();
+    }
+  };
+
+  const handleOtpPaste = (e) => {
+    e.preventDefault();
+    const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
+    if (pasted) {
+      const newDigits = ['', '', '', '', '', ''];
+      for (let i = 0; i < pasted.length; i++) {
+        newDigits[i] = pasted[i];
+      }
+      setOtpDigits(newDigits);
+      const focusIndex = Math.min(pasted.length, 5);
+      if (otpInputRefs.current[focusIndex]) {
+        otpInputRefs.current[focusIndex].focus();
+      }
     }
   };
 
@@ -115,59 +237,58 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login', onAu
               justifyContent: 'center',
               color: '#fff'
             }}>
-              <Gamepad2 size={18} />
+              {isOtpStep ? <KeyRound size={18} /> : <Gamepad2 size={18} />}
             </div>
             <h3 className="modal-title">
-              {mode === 'login' && 'Welcome Back'}
-              {mode === 'signup' && 'Create TeamUP Account'}
-              {mode === 'forgot' && 'Reset Password'}
+              {mode === 'login' && 'Log In to TeamUP'}
+              {mode === 'signup' && (isOtpStep ? 'Verify Your Email' : 'Create an Account')}
+              {mode === 'forgot' && 'Reset Your Password'}
             </h3>
           </div>
-          <button type="button" className="modal-close-btn" onClick={onClose}>
-            <X size={20} />
+          <button className="modal-close" onClick={onClose} aria-label="Close modal">
+            <X size={18} />
           </button>
         </div>
 
-        {/* Tab Switcher (Login / Signup) */}
-        {mode !== 'forgot' && (
+        {/* Tab Switcher (Only visible when not on OTP step) */}
+        {!isOtpStep && (
           <div style={{
             display: 'flex',
             borderBottom: '1px solid var(--border-color)',
-            padding: '0 1.5rem',
-            background: 'var(--bg-card)'
+            background: 'var(--bg-secondary)'
           }}>
             <button
               type="button"
-              onClick={() => { setMode('login'); setError(null); }}
+              onClick={() => { setMode('login'); setError(null); setIsOtpStep(false); }}
               style={{
                 flex: 1,
-                padding: '0.85rem 0',
+                padding: '0.75rem',
                 border: 'none',
-                background: 'none',
-                fontWeight: mode === 'login' ? 700 : 500,
+                background: mode === 'login' ? 'var(--bg-card)' : 'transparent',
                 color: mode === 'login' ? 'var(--primary)' : 'var(--text-muted)',
-                borderBottom: mode === 'login' ? '2px solid var(--primary)' : '2px solid transparent',
+                fontWeight: mode === 'login' ? '700' : '500',
+                borderBottom: mode === 'login' ? '2px solid var(--primary)' : 'none',
                 cursor: 'pointer',
                 transition: 'all 0.2s',
-                fontSize: '0.95rem'
+                fontSize: '0.9rem'
               }}
             >
               Log In
             </button>
             <button
               type="button"
-              onClick={() => { setMode('signup'); setError(null); }}
+              onClick={() => { setMode('signup'); setError(null); setIsOtpStep(false); }}
               style={{
                 flex: 1,
-                padding: '0.85rem 0',
+                padding: '0.75rem',
                 border: 'none',
-                background: 'none',
-                fontWeight: mode === 'signup' ? 700 : 500,
+                background: mode === 'signup' ? 'var(--bg-card)' : 'transparent',
                 color: mode === 'signup' ? 'var(--primary)' : 'var(--text-muted)',
-                borderBottom: mode === 'signup' ? '2px solid var(--primary)' : '2px solid transparent',
+                fontWeight: mode === 'signup' ? '700' : '500',
+                borderBottom: mode === 'signup' ? '2px solid var(--primary)' : 'none',
                 cursor: 'pointer',
                 transition: 'all 0.2s',
-                fontSize: '0.95rem'
+                fontSize: '0.9rem'
               }}
             >
               Sign Up
@@ -175,19 +296,19 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login', onAu
           </div>
         )}
 
-        {/* Error Banner */}
+        {/* Error Alert */}
         {error && (
           <div style={{
             margin: '1rem 1.5rem 0',
             padding: '0.75rem 1rem',
-            borderRadius: 'var(--radius-md)',
+            borderRadius: '8px',
             background: 'rgba(239, 68, 68, 0.1)',
             border: '1px solid rgba(239, 68, 68, 0.3)',
             color: '#ef4444',
+            fontSize: '0.85rem',
             display: 'flex',
             alignItems: 'center',
-            gap: '0.6rem',
-            fontSize: '0.85rem'
+            gap: '0.5rem'
           }}>
             <AlertCircle size={16} style={{ flexShrink: 0 }} />
             <span>{error}</span>
@@ -198,14 +319,12 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login', onAu
         {mode === 'login' && (
           <form className="modal-body" onSubmit={handleLoginSubmit}>
             <div className="form-group">
-              <label htmlFor="loginId">
-                <User size={14} /> Username or Email *
-              </label>
+              <label htmlFor="loginEmail"><Mail size={14} /> Username or Email</label>
               <input
-                id="loginId"
+                id="loginEmail"
                 type="text"
                 className="form-input"
-                placeholder="e.g. shadow_ninja or name@example.com"
+                placeholder="ShadowViper or you@example.com"
                 value={loginData.loginOrEmail}
                 onChange={e => setLoginData({ ...loginData, loginOrEmail: e.target.value })}
                 required
@@ -215,27 +334,25 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login', onAu
 
             <div className="form-group">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
-                <label htmlFor="loginPass" style={{ margin: 0 }}>
-                  <Lock size={14} /> Password *
-                </label>
+                <label htmlFor="loginPassword" style={{ margin: 0 }}><Lock size={14} /> Password</label>
                 <button
                   type="button"
-                  onClick={() => { setMode('forgot'); setError(null); }}
+                  onClick={() => { setMode('forgot'); setError(null); setForgotSent(false); }}
                   style={{
                     background: 'none',
                     border: 'none',
                     color: 'var(--primary)',
-                    fontSize: '0.8rem',
+                    fontSize: '0.75rem',
                     cursor: 'pointer',
                     padding: 0
                   }}
                 >
-                  Forgot password?
+                  Forgot Password?
                 </button>
               </div>
               <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
                 <input
-                  id="loginPass"
+                  id="loginPassword"
                   type={showLoginPassword ? 'text' : 'password'}
                   className="form-input"
                   placeholder="Enter your password"
@@ -279,9 +396,9 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login', onAu
           </form>
         )}
 
-        {/* SIGNUP FORM */}
-        {mode === 'signup' && (
-          <form className="modal-body" onSubmit={handleSignupSubmit}>
+        {/* SIGNUP FORM - STEP 1: Details */}
+        {mode === 'signup' && !isOtpStep && (
+          <form className="modal-body" onSubmit={handleInitiateSignup}>
             <div className="form-row">
               <div className="form-group">
                 <label htmlFor="signupUsername"><User size={14} /> Username *</label>
@@ -395,8 +512,123 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login', onAu
               <button type="button" className="btn btn-outline" onClick={onClose}>
                 Cancel
               </button>
-              <button type="submit" className="btn btn-primary" disabled={loading} style={{ minWidth: '150px' }}>
-                {loading ? 'Creating Account...' : 'Complete Sign Up'}
+              <button type="submit" className="btn btn-primary" disabled={loading} style={{ minWidth: '160px' }}>
+                {loading ? 'Sending Code...' : 'Continue with Email →'}
+              </button>
+            </div>
+          </form>
+        )}
+
+        {/* SIGNUP FORM - STEP 2: 6-Digit Email OTP Verification */}
+        {mode === 'signup' && isOtpStep && (
+          <form className="modal-body" onSubmit={handleVerifyOtpAndSignup} style={{ textAlign: 'center' }}>
+            <div style={{
+              width: '52px',
+              height: '52px',
+              borderRadius: '50%',
+              background: 'rgba(124, 58, 237, 0.12)',
+              border: '1px solid rgba(124, 58, 237, 0.3)',
+              color: '#c4b5fd',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              margin: '0.5rem auto 1rem'
+            }}>
+              <Mail size={24} />
+            </div>
+
+            <h4 style={{ margin: '0 0 0.5rem', fontSize: '1.15rem', fontWeight: 800 }}>Enter Verification Code</h4>
+            <p style={{ margin: '0 0 1.5rem', fontSize: '0.86rem', color: 'var(--text-muted)', lineHeight: '1.4' }}>
+              We have sent a 6-digit code to <strong style={{ color: 'var(--text-primary)' }}>{signupData.email}</strong>. Enter it below to activate your account.
+            </p>
+
+            {/* 6 Digit Input Boxes */}
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'center',
+                gap: '0.5rem',
+                marginBottom: '1.5rem'
+              }}
+              onPaste={handleOtpPaste}
+            >
+              {otpDigits.map((digit, idx) => (
+                <input
+                  key={idx}
+                  ref={el => (otpInputRefs.current[idx] = el)}
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={1}
+                  value={digit}
+                  onChange={e => handleOtpChange(idx, e.target.value)}
+                  onKeyDown={e => handleOtpKeyDown(idx, e)}
+                  style={{
+                    width: '44px',
+                    height: '52px',
+                    borderRadius: '10px',
+                    border: digit ? '2px solid var(--primary)' : '1px solid var(--border-color)',
+                    background: 'var(--bg-secondary)',
+                    textAlign: 'center',
+                    fontSize: '1.35rem',
+                    fontWeight: '800',
+                    color: '#fbbf24',
+                    outline: 'none',
+                    boxShadow: digit ? '0 0 12px rgba(124, 58, 237, 0.25)' : 'none',
+                    transition: 'all 0.15s ease'
+                  }}
+                  autoFocus={idx === 0}
+                />
+              ))}
+            </div>
+
+            {/* Resend & Back options */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', fontSize: '0.85rem' }}>
+              <button
+                type="button"
+                onClick={() => { setIsOtpStep(false); setError(null); }}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--text-muted)',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  padding: 0
+                }}
+              >
+                <ArrowLeft size={14} /> Edit Details
+              </button>
+
+              <button
+                type="button"
+                onClick={handleResendOtp}
+                disabled={resendTimer > 0 || isResending}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: resendTimer > 0 ? 'var(--text-muted)' : 'var(--primary)',
+                  fontWeight: 600,
+                  cursor: resendTimer > 0 ? 'default' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  padding: 0
+                }}
+              >
+                <RefreshCw size={13} className={isResending ? 'spin' : ''} />
+                {resendTimer > 0 ? `Resend Code (${resendTimer}s)` : 'Resend Code'}
+              </button>
+            </div>
+
+            <div className="modal-footer" style={{ padding: '0', borderTop: 'none' }}>
+              <button
+                type="submit"
+                className="btn btn-primary"
+                disabled={loading || otpDigits.join('').length !== 6}
+                style={{ width: '100%', padding: '0.8rem', fontSize: '0.96rem', fontWeight: 700 }}
+              >
+                {loading ? 'Verifying...' : 'Verify & Create Account 🚀'}
               </button>
             </div>
           </form>
