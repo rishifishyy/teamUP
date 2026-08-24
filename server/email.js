@@ -17,11 +17,49 @@ function getTransporter() {
   }
 
   return nodemailer.createTransport({
-    host: 'smtp.gmail.com',
-    port: 465,
-    secure: true,
-    auth: { user, pass }
+    service: 'gmail',
+    auth: { user, pass },
+    tls: {
+      rejectUnauthorized: false
+    }
   });
+}
+
+export async function testEmailTransporter(toEmail) {
+  const targetEmail = toEmail || process.env.EMAIL_USER || 'rishinehra1@gmail.com';
+  const transporter = getTransporter();
+  if (!transporter) {
+    return {
+      success: false,
+      error: 'Transporter not configured. EMAIL_USER or EMAIL_PASS is missing in environment variables.',
+      env: {
+        EMAIL_USER: process.env.EMAIL_USER ? 'SET (' + process.env.EMAIL_USER + ')' : 'MISSING',
+        EMAIL_PASS: process.env.EMAIL_PASS ? 'SET (Length: ' + process.env.EMAIL_PASS.length + ')' : 'MISSING'
+      }
+    };
+  }
+
+  try {
+    const verified = await transporter.verify();
+    const info = await transporter.sendMail({
+      from: getSenderEmail(),
+      to: targetEmail,
+      subject: '🧪 TeamUP SMTP Live Test Email',
+      text: 'If you receive this, your live email sending configuration is 100% operational!'
+    });
+    return { success: true, verified, messageId: info.messageId, to: targetEmail };
+  } catch (err) {
+    return {
+      success: false,
+      error: err.message,
+      code: err.code,
+      command: err.command,
+      env: {
+        EMAIL_USER: process.env.EMAIL_USER ? 'SET (' + process.env.EMAIL_USER + ')' : 'MISSING',
+        EMAIL_PASS: process.env.EMAIL_PASS ? 'SET (Length: ' + process.env.EMAIL_PASS.length + ')' : 'MISSING'
+      }
+    };
+  }
 }
 
 function getAppUrl() {

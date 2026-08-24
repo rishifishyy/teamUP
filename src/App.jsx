@@ -130,6 +130,7 @@ export default function App() {
       setRequests(data);
       
       if (localStorage.getItem('teamup_token')) {
+        loadUser();
         const incoming = await api.getIncomingRequests();
         setIncomingRequests(incoming);
         
@@ -382,7 +383,11 @@ export default function App() {
       const created = await api.createRequest(newReqData);
       setIsPostModalOpen(false);
       if (created?.postsCount !== undefined) {
-        setCurrentUser(prev => prev ? { ...prev, postsCount: created.postsCount } : prev);
+        setCurrentUser(prev => {
+          const updated = prev ? { ...prev, postsCount: created.postsCount } : prev;
+          if (updated) localStorage.setItem('teamup_user_profile', JSON.stringify(updated));
+          return updated;
+        });
       }
       showToast('🎉 Your teammate request is now LIVE on the pool!', 'success');
       
@@ -450,7 +455,11 @@ export default function App() {
       const targetId = pendingInviteTarget.id || pendingInviteTarget._id;
       const res = await api.sendMatchRequest(targetId, setupData);
       if (res?.invitesCount !== undefined) {
-        setCurrentUser(prev => prev ? { ...prev, invitesCount: res.invitesCount } : prev);
+        setCurrentUser(prev => {
+          const updated = prev ? { ...prev, invitesCount: res.invitesCount } : prev;
+          if (updated) localStorage.setItem('teamup_user_profile', JSON.stringify(updated));
+          return updated;
+        });
       }
       setIsSendInviteModalOpen(false);
       showToast('🎉 Match request sent! Waiting for player to accept.', 'success');

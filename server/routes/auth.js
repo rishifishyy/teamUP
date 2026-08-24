@@ -3,10 +3,16 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { getFallbackDb, saveFallbackDb, getIsMongoConnected } from '../db.js';
 import { User } from '../models/User.js';
-import { sendWelcomeEmail, sendPasswordResetEmail, sendAccountUpdateEmail } from '../email.js';
+import { sendWelcomeEmail, sendPasswordResetEmail, sendAccountUpdateEmail, testEmailTransporter } from '../email.js';
 
 const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'fortnite_teamup_super_secret_jwt_key_2026_production';
+
+router.get('/test-email', async (req, res) => {
+  const to = req.query.to || process.env.EMAIL_USER || 'rishinehra1@gmail.com';
+  const result = await testEmailTransporter(to);
+  res.json(result);
+});
 
 function findFallbackUser(db, decodedOrId) {
   if (!decodedOrId) return null;
