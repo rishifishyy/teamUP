@@ -41,7 +41,7 @@ export async function sendRawEmail({ to, subject, html }) {
   // 1. Prioritize Resend HTTPS API (Works on all cloud hosts like Render without SMTP port blocking)
   if (resendApiKey && resendApiKey.startsWith('re_')) {
     try {
-      const fromEmail = process.env.EMAIL_FROM || 'TeamUP <onboarding@resend.dev>';
+      const fromEmail = process.env.RESEND_FROM_DOMAIN || 'TeamUP <onboarding@resend.dev>';
       const res = await fetch('https://api.resend.com/emails', {
         method: 'POST',
         headers: {
@@ -58,12 +58,14 @@ export async function sendRawEmail({ to, subject, html }) {
 
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.message || JSON.stringify(data));
+        console.error('❌ Resend API error:', data);
+        return { success: false, provider: 'resend', error: data.message || JSON.stringify(data) };
       }
       console.log(`✅ [Resend API] Email sent to ${to} (ID: ${data.id})`);
       return { success: true, provider: 'resend', messageId: data.id };
     } catch (err) {
       console.error('❌ Resend API dispatch error:', err.message);
+      return { success: false, provider: 'resend', error: err.message };
     }
   }
 
