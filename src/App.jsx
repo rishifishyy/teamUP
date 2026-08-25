@@ -77,6 +77,7 @@ export default function App() {
   const [pendingInviteTarget, setPendingInviteTarget] = useState(null);
   const [isSendingInvite, setIsSendingInvite] = useState(false);
   const [incomingRequests, setIncomingRequests] = useState([]);
+  const [notifications, setNotifications] = useState({ totalCount: 0, incoming: [], declined: [], accepted: null });
   const [isIncomingModalOpen, setIsIncomingModalOpen] = useState(false);
   const [toasts, setToasts] = useState([]);
   const [theme, setTheme] = useState(() => {
@@ -131,27 +132,15 @@ export default function App() {
       
       if (localStorage.getItem('teamup_token')) {
         loadUser();
-        const incoming = await api.getIncomingRequests();
-        setIncomingRequests(incoming);
-        
-        const acceptedRes = await api.getAcceptedMatches();
-        if (acceptedRes && acceptedRes.hasAcceptedMatch) {
-          setMatchModalData(acceptedRes);
-          localStorage.setItem('teamup_active_chat', JSON.stringify(acceptedRes));
-          setActiveChatData(acceptedRes);
-
-          const seenKey = `teamup_seen_match_${acceptedRes.matchId}`;
-          if (!sessionStorage.getItem(seenKey)) {
-            sessionStorage.setItem(seenKey, 'true');
-            setIsMatchModalOpen(true);
-          }
-        } else if (acceptedRes && acceptedRes.hasDeclinedMatch) {
-          const ackKey = `teamup_ack_declined_${acceptedRes.declinedPostTitle || 'req'}`;
-          if (!sessionStorage.getItem(ackKey)) {
-            sessionStorage.setItem(ackKey, 'true');
-            const postTitle = acceptedRes.declinedPostTitle || 'Teammate request';
-            showToast(`❌ Teammate Request Declined: "${postTitle}" was unable to accept.`, 'warning');
-            api.dismissDeclined();
+        const notifs = await api.getNotifications();
+        if (notifs) {
+          setNotifications(notifs);
+          setIncomingRequests(notifs.incoming || []);
+          
+          if (notifs.accepted) {
+            setMatchModalData(notifs.accepted);
+            localStorage.setItem('teamup_active_chat', JSON.stringify(notifs.accepted));
+            setActiveChatData(notifs.accepted);
           }
         }
 
@@ -183,6 +172,28 @@ export default function App() {
         }
       }
     } catch {}
+  };
+
+  const handleClearNotifications = async () => {
+    await api.clearNotifications();
+    setNotifications(prev => ({
+      ...prev,
+      declined: [],
+      totalCount: (prev.incoming?.length || 0)
+    }));
+    showToast('Notifications cleared', 'info');
+  };
+
+  const handleDismissNotification = async (notifId) => {
+    await api.dismissNotification(notifId);
+    setNotifications(prev => {
+      const nextDeclined = (prev.declined || []).filter(d => d.id !== notifId);
+      return {
+        ...prev,
+        declined: nextDeclined,
+        totalCount: (prev.incoming?.length || 0) + nextDeclined.length + (prev.accepted ? 1 : 0)
+      };
+    });
   };
 
   useEffect(() => {
@@ -507,7 +518,8 @@ export default function App() {
         channel.postMessage({ type: 'MATCH_ACCEPTED' });
         channel.close();
       }
-      fetchRequests(); // Refresh requests and incoming
+      loadUser();
+      fetchRequests(); // Refresh requests, pass count, and incoming
     } catch (err) {
       showToast(err.message || 'Failed to accept match', 'warning');
     }
@@ -630,15 +642,26 @@ export default function App() {
         currentView={currentView}
         onNavigate={(view) => setCurrentView(view)}
         onOpenPostModal={handleOpenPostModal}
-        onOpenAuthModal={() => setIsAuthModalOpen(true)}
+        onOpenAuthModal={(tab) => {
+          setAuthInitialTab(tab || 'login');
+          setIsAuthModalOpen(true);
+        }}
         onOpenProfileModal={() => setIsProfileModalOpen(true)}
         currentUser={currentUser}
         onLogout={handleLogout}
         theme={theme}
         onToggleTheme={toggleTheme}
         onOpenPremium={() => setIsPremiumModalOpen(true)}
-        incomingRequestsCount={incomingRequests.length}
+        notifications={notifications}
         onOpenIncomingRequests={() => setIsIncomingModalOpen(true)}
+        onOpenAcceptedMatch={() => {
+          if (notifications.accepted) {
+            setMatchModalData(notifications.accepted);
+            setIsMatchModalOpen(true);
+          }
+        }}
+        onClearNotifications={handleClearNotifications}
+        onDismissNotification={handleDismissNotification}
       />
 
       <AnimatePresence mode="wait">

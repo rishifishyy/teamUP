@@ -38,14 +38,21 @@ function findFallbackUser(db, decodedOrId) {
 
 router.get('/', async (req, res) => {
   try {
+    const poolCutoff = new Date(Date.now() - 15 * 60 * 1000); // 15 minutes max lifetime
+
     if (getIsMongoConnected()) {
-      const requests = await Request.find({ isHidden: { $ne: true } }).sort({ createdAt: -1 }).limit(100);
+      const requests = await Request.find({ 
+        isHidden: { $ne: true },
+        createdAt: { $gte: poolCutoff }
+      }).sort({ createdAt: -1 }).limit(100);
+
       return res.json({ requests });
     } else {
       const db = getFallbackDb();
-      const requests = [...db.requests]
-        .filter(r => !r.isHidden)
+      const requests = [...(db.requests || [])]
+        .filter(r => !r.isHidden && new Date(r.createdAt) >= poolCutoff)
         .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
       return res.json({ requests });
     }
   } catch (err) {
@@ -94,32 +101,22 @@ router.post('/', async (req, res) => {
       userAge = user.age || 18;
       isUserPremium = Boolean(user.isPremium);
 
-      // 1. Free Tier Rule: Max 2 Lifetime Free Requests (Combined Posts + Invites)
+      // 1. Free Tier Rule: Max 2 Lifetime Free Matched Passes
       if (!isUserPremium) {
         const freeUsed = (user.postsCount || 0) + (user.invitesCount || 0);
         if (freeUsed >= 2) {
           return res.status(403).json({
-            error: 'Free tier limit reached: You have used your 2 free requests. Upgrade to VIP Premium for unlimited requests in the pool!',
+            error: 'Free tier limit reached: You have used your 2 free match passes. Upgrade to VIP Premium for unlimited matching in the pool!',
             isFreeLimitReached: true,
             freeUsed,
             freeLimit: 2
           });
         }
-
-        // Clean any previous lookup so free user has 1 active lookup
-        await Request.deleteMany({ userId });
-      } else {
-        // 2. Premium Tier Rule: Max 1 Active Lookup in the Pool at a time
-        const activePosts = await Request.find({ userId });
-        if (activePosts.length >= 1) {
-          return res.status(400).json({
-            error: 'You already have an active lookup in the pool. You cannot create another lookup until you delete your previous one.',
-            hasActiveLookup: true
-          });
-        }
       }
 
-      user.postsCount = (user.postsCount || 0) + 1;
+      // 1 Active Lookup in the pool at a time (delete any previous lookup by this user)
+      await Request.deleteMany({ userId });
+
       user.lastPostDate = new Date();
       await user.save();
 
@@ -146,7 +143,7 @@ router.post('/', async (req, res) => {
         note: note?.trim() || ''
       });
 
-      return res.status(201).json({ request: newRequest, postsCount: user.postsCount });
+      return res.status(201).json({ request: newRequest, postsCount: user.postsCount || 0 });
     } else {
       const db = getFallbackDb();
       const user = findFallbackUser(db, getAuthDecoded(req) || userId);
@@ -156,32 +153,22 @@ router.post('/', async (req, res) => {
       userAge = user.age || 18;
       isUserPremium = Boolean(user.isPremium);
 
-      // 1. Free Tier Rule: Max 2 Lifetime Free Requests (Combined Posts + Invites)
+      // 1. Free Tier Rule: Max 2 Lifetime Free Matched Passes
       if (!isUserPremium) {
         const freeUsed = (user.postsCount || 0) + (user.invitesCount || 0);
         if (freeUsed >= 2) {
           return res.status(403).json({
-            error: 'Free tier limit reached: You have used your 2 free requests. Upgrade to VIP Premium for unlimited requests in the pool!',
+            error: 'Free tier limit reached: You have used your 2 free match passes. Upgrade to VIP Premium for unlimited matching in the pool!',
             isFreeLimitReached: true,
             freeUsed,
             freeLimit: 2
           });
         }
-
-        // Clean any previous lookup so free user has 1 active lookup
-        db.requests = (db.requests || []).filter(r => String(r.userId) !== realUserId);
-      } else {
-        // 2. Premium Tier Rule: Max 1 Active Lookup in the Pool at a time
-        const activePosts = (db.requests || []).filter(r => String(r.userId) === realUserId);
-        if (activePosts.length >= 1) {
-          return res.status(400).json({
-            error: 'You already have an active lookup in the pool. You cannot create another lookup until you delete your previous one.',
-            hasActiveLookup: true
-          });
-        }
       }
 
-      user.postsCount = (user.postsCount || 0) + 1;
+      // 1 Active Lookup in the pool at a time (clean previous)
+      db.requests = (db.requests || []).filter(r => String(r.userId) !== realUserId);
+
       user.lastPostDate = new Date().toISOString();
 
       const reqId = `req-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
@@ -215,7 +202,7 @@ router.post('/', async (req, res) => {
       db.requests.unshift(newRequest);
       saveFallbackDb(db);
 
-      return res.status(201).json({ request: newRequest, postsCount: user.postsCount });
+      return res.status(201).json({ request: newRequest, postsCount: user.postsCount || 0 });
     }
   } catch (err) {
     console.error('Create request error:', err);

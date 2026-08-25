@@ -165,6 +165,42 @@ export const api = {
     return safeJson(res, 'Failed to decline match');
   },
 
+  async getNotifications() {
+    try {
+      const res = await fetch(`${API_BASE}/matches/notifications`, {
+        headers: getAuthHeaders()
+      });
+      if (!res.ok) return { totalCount: 0, incoming: [], declined: [], accepted: null };
+      return await safeJson(res);
+    } catch {
+      return { totalCount: 0, incoming: [], declined: [], accepted: null };
+    }
+  },
+
+  async clearNotifications() {
+    try {
+      const res = await fetch(`${API_BASE}/matches/notifications/clear`, {
+        method: 'POST',
+        headers: getAuthHeaders()
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  },
+
+  async dismissNotification(matchId) {
+    try {
+      const res = await fetch(`${API_BASE}/matches/notifications/${matchId}`, {
+        method: 'DELETE',
+        headers: getAuthHeaders()
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  },
+
   async dismissMatch() {
     try {
       const res = await fetch(`${API_BASE}/matches/dismiss`, {
@@ -179,7 +215,7 @@ export const api = {
 
   async dismissDeclined() {
     try {
-      const res = await fetch(`${API_BASE}/matches/dismiss-declined`, {
+      const res = await fetch(`${API_BASE}/matches/notifications/clear`, {
         method: 'POST',
         headers: getAuthHeaders()
       });

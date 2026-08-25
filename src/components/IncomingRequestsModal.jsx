@@ -46,10 +46,14 @@ export default function IncomingRequestsModal({ isOpen, onClose, requests, onAcc
                 <h4 style={{ fontSize: '1.25rem', marginBottom: '0.25rem' }}>
                   <strong>{currentRequest.senderEpic || currentRequest.senderName}</strong> wants to team up!
                 </h4>
-                <p style={{ color: 'var(--text-secondary)', marginBottom: '1.5rem', fontSize: '0.9rem' }}>
+                <p style={{ color: 'var(--text-secondary)', marginBottom: '1.2rem', fontSize: '0.9rem' }}>
                   They replied to your post for <strong>{currentRequest.postMainMode}</strong>.
                   <br/>
-                  <small style={{ opacity: 0.7 }}>Requested {new Date(currentRequest.createdAt).toLocaleTimeString()}</small>
+                  <small style={{ opacity: 0.8 }}>Requested {new Date(currentRequest.createdAt).toLocaleTimeString()}</small>
+                  <br/>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', marginTop: '6px', padding: '3px 8px', borderRadius: '6px', background: 'rgba(251, 191, 36, 0.12)', color: '#fbbf24', fontSize: '0.78rem', fontWeight: 700 }}>
+                    ⏱️ Auto-expires after 10 mins
+                  </span>
                 </p>
 
                 <div style={{ background: 'var(--card-bg-elevated)', padding: '1.1rem', borderRadius: '12px', marginBottom: '1.5rem', textAlign: 'left', display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>

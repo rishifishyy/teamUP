@@ -24,6 +24,10 @@ const matchRequestSchema = new mongoose.Schema({
   senderMic: { type: String, default: 'Yes' },
   senderLang: { type: String, default: 'English' },
   senderNote: { type: String, default: '' },
+  declinedReason: { type: String, default: '' }, // 'rejected_by_user' | 'expired_10m'
+  declinedAt: { type: Date },
+  isDismissedBySender: { type: Boolean, default: false },
+  isDismissedByReceiver: { type: Boolean, default: false },
   matchedAt: { type: Date },
   isChatEnded: { type: Boolean, default: false },
   chatEndedBy: { type: String, default: '' },
