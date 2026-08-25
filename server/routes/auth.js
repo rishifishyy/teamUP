@@ -75,11 +75,19 @@ router.post('/send-registration-otp', async (req, res) => {
 
     registrationOtps.set(normEmail, { otp, expiresAt, username: normUsername });
 
-    await sendRegistrationOtpEmail(normEmail, normUsername, otp);
+    const mailResult = await sendRegistrationOtpEmail(normEmail, normUsername, otp);
+    console.log(`[Registration OTP] Dispatch to ${normEmail}:`, mailResult);
+
+    if (!mailResult.success) {
+      return res.status(500).json({
+        error: `Failed to deliver verification email to ${normEmail}. Details: ${mailResult.message || 'Please check email service configuration.'}`
+      });
+    }
+
     return res.json({ success: true, message: `Verification code sent to ${normEmail}` });
   } catch (err) {
     console.error('Send registration OTP error:', err);
-    return res.status(500).json({ error: 'Failed to send verification code. Please try again.' });
+    return res.status(500).json({ error: err.message || 'Failed to send verification code. Please try again.' });
   }
 });
 

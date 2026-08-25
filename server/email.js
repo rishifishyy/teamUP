@@ -33,12 +33,44 @@ function getTransporter() {
   });
 }
 
-// Universal Email Dispatcher: Supports HTTPS API (Resend / Brevo) and SMTP (Nodemailer)
+// Universal Email Dispatcher: Supports HTTPS API (Brevo / Resend) and SMTP (Nodemailer)
 export async function sendRawEmail({ to, subject, html }) {
-  const resendApiKey = process.env.RESEND_API_KEY?.trim();
   const brevoApiKey = process.env.BREVO_API_KEY?.trim();
+  const resendApiKey = process.env.RESEND_API_KEY?.trim();
+  const errors = [];
 
-  // 1. Prioritize Resend HTTPS API (Works on all cloud hosts like Render without SMTP port blocking)
+  // 1. Prioritize Brevo HTTPS API (Works 100% on Render to ANY recipient without custom domain requirement)
+  if (brevoApiKey && brevoApiKey.length > 5) {
+    try {
+      const fromEmail = process.env.EMAIL_USER?.trim() || 'rishinehra1@gmail.com';
+      const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+        method: 'POST',
+        headers: {
+          'api-key': brevoApiKey,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          sender: { name: 'TeamUP', email: fromEmail },
+          to: [{ email: to }],
+          subject,
+          htmlContent: html
+        })
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        console.log(`✅ [Brevo API] Email sent to ${to} (ID: ${data.messageId})`);
+        return { success: true, provider: 'brevo', messageId: data.messageId };
+      }
+      console.warn('⚠️ [Brevo API] Error:', data.message || JSON.stringify(data));
+      errors.push(`Brevo: ${data.message || JSON.stringify(data)}`);
+    } catch (err) {
+      console.warn('⚠️ [Brevo API] Exception:', err.message);
+      errors.push(`Brevo: ${err.message}`);
+    }
+  }
+
+  // 2. Resend HTTPS API (Works if email is registered user or custom domain is added)
   if (resendApiKey && resendApiKey.startsWith('re_')) {
     try {
       const fromEmail = process.env.RESEND_FROM_DOMAIN || 'TeamUP <onboarding@resend.dev>';
@@ -61,42 +93,15 @@ export async function sendRawEmail({ to, subject, html }) {
         console.log(`✅ [Resend API] Email sent to ${to} (ID: ${data.id})`);
         return { success: true, provider: 'resend', messageId: data.id };
       }
-      console.warn('⚠️ [Resend API] Failed, falling back to SMTP:', data.message || JSON.stringify(data));
+      console.warn('⚠️ [Resend API] Error:', data.message || JSON.stringify(data));
+      errors.push(`Resend: ${data.message || JSON.stringify(data)}`);
     } catch (err) {
-      console.warn('⚠️ [Resend API] Dispatch error, falling back to SMTP:', err.message);
+      console.warn('⚠️ [Resend API] Exception:', err.message);
+      errors.push(`Resend: ${err.message}`);
     }
   }
 
-  // 2. Brevo HTTPS API
-  if (brevoApiKey) {
-    try {
-      const fromEmail = process.env.EMAIL_USER?.trim() || 'teamup@fortnite.gg';
-      const res = await fetch('https://api.brevo.com/v3/smtp/email', {
-        method: 'POST',
-        headers: {
-          'api-key': brevoApiKey,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          sender: { name: 'TeamUP', email: fromEmail },
-          to: [{ email: to }],
-          subject,
-          htmlContent: html
-        })
-      });
-
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.message || JSON.stringify(data));
-      }
-      console.log(`✅ [Brevo API] Email sent to ${to} (ID: ${data.messageId})`);
-      return { success: true, provider: 'brevo', messageId: data.messageId };
-    } catch (err) {
-      console.error('❌ Brevo API dispatch error:', err.message);
-    }
-  }
-
-  // 3. Fallback to Nodemailer SMTP (e.g. on Localhost or hosts with open SMTP ports)
+  // 3. Fallback to Nodemailer SMTP (Works on localhost or hosts with open SMTP ports)
   const transporter = getTransporter();
   if (transporter) {
     try {
@@ -113,12 +118,12 @@ export async function sendRawEmail({ to, subject, html }) {
       return { success: true, provider: 'nodemailer', messageId: info.messageId };
     } catch (err) {
       console.error(`❌ SMTP failed to ${to}:`, err.message);
-      return { success: false, provider: 'nodemailer', error: err.message };
+      errors.push(`SMTP: ${err.message}`);
     }
   }
 
-  console.log(`\n📧 [DEV MODE] Email to: ${to} | Subject: ${subject}`);
-  return { success: true, devMode: true };
+  console.error(`❌ [All Email Providers Failed for ${to}]:`, errors);
+  return { success: false, errors, message: errors.join(' | ') || 'No configured email provider succeeded.' };
 }
 
 // Diagnostics test endpoint helper
@@ -139,8 +144,8 @@ export async function testEmailTransporter(toEmail) {
     ...result,
     to: targetEmail,
     env: {
+      BREVO_API_KEY: process.env.BREVO_API_KEY ? 'SET (' + process.env.BREVO_API_KEY.substring(0, 8) + '...)' : 'NOT SET',
       RESEND_API_KEY: process.env.RESEND_API_KEY ? 'SET (' + process.env.RESEND_API_KEY.substring(0, 6) + '...)' : 'NOT SET',
-      BREVO_API_KEY: process.env.BREVO_API_KEY ? 'SET' : 'NOT SET',
       EMAIL_USER: process.env.EMAIL_USER ? 'SET (' + process.env.EMAIL_USER + ')' : 'MISSING',
       EMAIL_PASS: process.env.EMAIL_PASS ? 'SET (Length: ' + process.env.EMAIL_PASS.length + ')' : 'MISSING'
     }
