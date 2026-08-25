@@ -30,7 +30,7 @@ const DEFAULT_FILTERS = {
 };
 
 const resetToken = new URLSearchParams(window.location.search).get('token');
-const isResetPage = window.location.pathname === '/reset-password' && resetToken;
+const isResetPage = Boolean(resetToken) && (window.location.pathname.startsWith('/reset-password') || window.location.pathname === '/');
 
 export default function App() {
   const [currentView, setCurrentView] = useState('home'); // 'home' | 'finder'
