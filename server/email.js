@@ -35,23 +35,24 @@ function getTransporter() {
 
 // Universal Email Dispatcher: Supports HTTPS API (Brevo / Resend) and SMTP (Nodemailer)
 export async function sendRawEmail({ to, subject, html }) {
-  const brevoApiKey = process.env.BREVO_API_KEY?.trim();
-  const resendApiKey = process.env.RESEND_API_KEY?.trim();
+  const brevoApiKey = process.env.BREVO_API_KEY?.trim().replace(/^["']|["']$/g, '');
+  const resendApiKey = process.env.RESEND_API_KEY?.trim().replace(/^["']|["']$/g, '');
   const errors = [];
 
   // 1. Prioritize Brevo HTTPS API (Works 100% on Render to ANY recipient without custom domain requirement)
   if (brevoApiKey && brevoApiKey.length > 5) {
     try {
-      const fromEmail = process.env.EMAIL_USER?.trim() || 'rishinehra1@gmail.com';
+      const fromEmail = process.env.EMAIL_USER?.trim().replace(/^["']|["']$/g, '') || 'rishinehra1@gmail.com';
       const res = await fetch('https://api.brevo.com/v3/smtp/email', {
         method: 'POST',
         headers: {
           'api-key': brevoApiKey,
-          'Content-Type': 'application/json'
+          'accept': 'application/json',
+          'content-type': 'application/json'
         },
         body: JSON.stringify({
           sender: { name: 'TeamUP', email: fromEmail },
-          to: [{ email: to }],
+          to: [{ email: to.trim().toLowerCase() }],
           subject,
           htmlContent: html
         })
