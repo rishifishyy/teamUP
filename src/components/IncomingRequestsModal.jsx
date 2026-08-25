@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Check, Gamepad2, AlertCircle, Globe, Trophy, Users, Mic, MessageSquare } from 'lucide-react';
+import { formatTimeAgo } from '../utils/timeAgo';
 
 export default function IncomingRequestsModal({ isOpen, onClose, requests, onAccept, onDecline }) {
   if (!isOpen) return null;
@@ -49,7 +50,7 @@ export default function IncomingRequestsModal({ isOpen, onClose, requests, onAcc
                 <p style={{ color: 'var(--text-secondary)', marginBottom: '1.2rem', fontSize: '0.9rem' }}>
                   They replied to your post for <strong>{currentRequest.postMainMode}</strong>.
                   <br/>
-                  <small style={{ opacity: 0.8 }}>Requested {new Date(currentRequest.createdAt).toLocaleTimeString()}</small>
+                  <small style={{ opacity: 0.8 }}>Requested {formatTimeAgo(currentRequest.createdAt)} ({new Date(currentRequest.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})</small>
                   <br/>
                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', marginTop: '6px', padding: '3px 8px', borderRadius: '6px', background: 'rgba(251, 191, 36, 0.12)', color: '#fbbf24', fontSize: '0.78rem', fontWeight: 700 }}>
                     ⏱️ Auto-expires after 10 mins

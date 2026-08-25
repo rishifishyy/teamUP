@@ -1,5 +1,6 @@
 import React from 'react';
 import { Copy, Trash2, Globe, Trophy, Gamepad2, Mic, MicOff, Languages, Zap, MessageSquare, Crown } from 'lucide-react';
+import { useTimeAgo } from '../utils/timeAgo';
 
 export default function PlayerCard({
   post,
@@ -12,6 +13,9 @@ export default function PlayerCard({
   onDeletePost,
   hasIncoming
 }) {
+  const timestamp = post.createdAt || (post.postedAt && !isNaN(new Date(post.postedAt).getTime()) ? post.postedAt : null);
+  const timeAgo = useTimeAgo(timestamp || post.postedAt);
+
   const getTagIcon = (iconName) => {
     switch (iconName) {
       case 'Globe': return <Globe size={12} />;
@@ -43,7 +47,7 @@ export default function PlayerCard({
           <Zap size={13} />
           <span>{post.badgeText}</span>
         </div>
-        <span className="posted-time">{post.postedAt || 'Just now'}</span>
+        <span className="posted-time">{timeAgo}</span>
       </div>
 
       <div className="player-profile-row">

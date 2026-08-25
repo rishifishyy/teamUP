@@ -188,7 +188,7 @@ export default function PostWizard({
         note: finalData.note.trim(),
         rank: finalData.mainMode === 'Ranked' ? finalData.rank : 'Unranked',
         createdAt: new Date().toISOString(),
-        postedAt: 'Just now'
+        postedAt: new Date().toISOString()
       });
       onClose();
       setTimeout(() => {
