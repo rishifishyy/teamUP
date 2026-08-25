@@ -47,7 +47,7 @@ router.get('/active-session', async (req, res) => {
     if (getIsMongoConnected()) {
       const activeMatch = await MatchRequest.findOne({
         $or: [{ fromUserId: currentUserId }, { toUserId: currentUserId }],
-        status: { $in: ['accepted', 'acknowledged'] },
+        status: 'accepted',
         isChatEnded: { $ne: true }
       }).sort({ matchedAt: -1, createdAt: -1 });
 
@@ -55,7 +55,7 @@ router.get('/active-session', async (req, res) => {
         // Check if there was a recently ended match
         const recentlyEndedMatch = await MatchRequest.findOne({
           $or: [{ fromUserId: currentUserId }, { toUserId: currentUserId }],
-          status: { $in: ['accepted', 'acknowledged'] },
+          status: 'accepted',
           isChatEnded: true
         }).sort({ chatEndedAt: -1, matchedAt: -1 });
 
@@ -107,7 +107,7 @@ router.get('/active-session', async (req, res) => {
 
       const activeMatch = (db.matchRequests || []).find(m => {
         const isParticipant = userIds.includes(String(m.fromUserId)) || userIds.includes(String(m.toUserId));
-        const isAccepted = ['accepted', 'acknowledged'].includes(m.status);
+        const isAccepted = m.status === 'accepted';
         const notEnded = !m.isChatEnded;
         if (!isParticipant || !isAccepted || !notEnded) return false;
 
@@ -119,7 +119,7 @@ router.get('/active-session', async (req, res) => {
         // Check if there is a recently ended match for cross-browser sync
         const recentlyEndedMatch = (db.matchRequests || []).find(m => {
           const isParticipant = userIds.includes(String(m.fromUserId)) || userIds.includes(String(m.toUserId));
-          const isAccepted = ['accepted', 'acknowledged'].includes(m.status);
+          const isAccepted = m.status === 'accepted';
           const isEnded = m.isChatEnded === true;
           if (!isParticipant || !isAccepted || !isEnded) return false;
           const endedTime = new Date(m.chatEndedAt || m.matchedAt || m.createdAt).getTime();
@@ -185,6 +185,7 @@ router.get('/:matchId/messages', async (req, res) => {
 
       const isParticipant = String(match.fromUserId) === String(currentUserId) || String(match.toUserId) === String(currentUserId);
       if (!isParticipant) return res.status(403).json({ error: 'Forbidden' });
+      if (match.status !== 'accepted') return res.status(403).json({ error: 'Match is not accepted or was declined.' });
 
       const matchedTime = new Date(match.matchedAt || match.createdAt).getTime();
       const elapsed = Date.now() - matchedTime;
@@ -215,6 +216,7 @@ router.get('/:matchId/messages', async (req, res) => {
 
       const isParticipant = userIds.includes(String(match.fromUserId)) || userIds.includes(String(match.toUserId));
       if (!isParticipant) return res.status(403).json({ error: 'Forbidden' });
+      if (match.status !== 'accepted') return res.status(403).json({ error: 'Match is not accepted or was declined.' });
 
       const matchedTime = new Date(match.matchedAt || match.createdAt).getTime();
       const elapsed = Date.now() - matchedTime;
@@ -261,6 +263,7 @@ router.post('/:matchId/message', async (req, res) => {
 
       const isParticipant = String(match.fromUserId) === String(currentUserId) || String(match.toUserId) === String(currentUserId);
       if (!isParticipant) return res.status(403).json({ error: 'Forbidden' });
+      if (match.status !== 'accepted') return res.status(403).json({ error: 'Match is not accepted or was declined.' });
 
       if (match.isChatEnded) {
         return res.status(400).json({ error: 'Chat has been ended.', isEnded: true, endedBy: match.chatEndedBy });
@@ -292,6 +295,7 @@ router.post('/:matchId/message', async (req, res) => {
 
       const isParticipant = userIds.includes(String(match.fromUserId)) || userIds.includes(String(match.toUserId));
       if (!isParticipant) return res.status(403).json({ error: 'Forbidden' });
+      if (match.status !== 'accepted') return res.status(403).json({ error: 'Match is not accepted or was declined.' });
 
       if (match.isChatEnded) {
         return res.status(400).json({ error: 'Chat has been ended.', isEnded: true, endedBy: match.chatEndedBy });

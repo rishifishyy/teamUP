@@ -543,6 +543,7 @@ export default function App() {
         channel.postMessage({ type: 'MATCH_DECLINED' });
         channel.close();
       }
+      fetchRequests();
     } catch {
       showToast('Failed to decline', 'warning');
     }

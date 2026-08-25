@@ -498,8 +498,8 @@ router.post('/notifications/clear', async (req, res) => {
 
     if (getIsMongoConnected()) {
       await MatchRequest.updateMany(
-        { fromUserId: currentUserId, status: { $in: ['declined', 'acknowledged'] } },
-        { isDismissedBySender: true, status: 'acknowledged' }
+        { fromUserId: currentUserId, status: 'declined' },
+        { isDismissedBySender: true }
       );
       return res.json({ success: true, message: 'Notifications cleared.' });
     } else {
@@ -508,9 +508,8 @@ router.post('/notifications/clear', async (req, res) => {
       const userIds = user ? [String(user.id), String(user._id)] : [String(currentUserId)];
 
       (db.matchRequests || []).forEach(m => {
-        if (userIds.includes(String(m.fromUserId)) && (m.status === 'declined' || m.status === 'acknowledged')) {
+        if (userIds.includes(String(m.fromUserId)) && m.status === 'declined') {
           m.isDismissedBySender = true;
-          m.status = 'acknowledged';
         }
       });
 
@@ -532,7 +531,7 @@ router.delete('/notifications/:matchId', async (req, res) => {
     if (getIsMongoConnected()) {
       await MatchRequest.findOneAndUpdate(
         { _id: matchId, fromUserId: currentUserId },
-        { isDismissedBySender: true, status: 'acknowledged' }
+        { isDismissedBySender: true }
       );
       return res.json({ success: true });
     } else {
@@ -540,7 +539,6 @@ router.delete('/notifications/:matchId', async (req, res) => {
       const match = (db.matchRequests || []).find(m => String(m.id) === String(matchId) || String(m._id) === String(matchId));
       if (match) {
         match.isDismissedBySender = true;
-        match.status = 'acknowledged';
         saveFallbackDb();
       }
       return res.json({ success: true });
@@ -810,7 +808,7 @@ router.post('/dismiss', async (req, res) => {
     if (getIsMongoConnected()) {
       await MatchRequest.updateMany(
         { $or: [{ fromUserId: currentUserId }, { toUserId: currentUserId }], status: 'accepted' },
-        { status: 'acknowledged', isDismissedBySender: true }
+        { isDismissedBySender: true, isChatEnded: true, chatEndedAt: new Date() }
       );
     } else {
       const db = getFallbackDb();
@@ -819,8 +817,9 @@ router.post('/dismiss', async (req, res) => {
 
       (db.matchRequests || []).forEach(m => {
         if ((userIds.includes(String(m.fromUserId)) || userIds.includes(String(m.toUserId))) && m.status === 'accepted') {
-          m.status = 'acknowledged';
           m.isDismissedBySender = true;
+          m.isChatEnded = true;
+          m.chatEndedAt = new Date().toISOString();
         }
       });
       saveFallbackDb();
