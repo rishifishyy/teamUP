@@ -37,8 +37,9 @@ function findFallbackUser(db, decodedOrId) {
     (email && u.email && u.email.toLowerCase() === String(email).toLowerCase())
   );
 }
-
-
+// Support both URL patterns
+router.post('/:postId/request', handleSendMatchRequest);
+router.post('/request/:postId', handleSendMatchRequest);
 
 // Handler for sending match requests
 async function handleSendMatchRequest(req, res) {
