@@ -643,7 +643,8 @@ router.post('/forgot-password', async (req, res) => {
       user.resetTokenExpiry = resetExpires;
       await user.save();
 
-      await sendPasswordResetEmail(user.email, resetToken, user.username);
+      const result = await sendPasswordResetEmail(user.email, resetToken, user.username);
+      console.log(`[Forgot Password] Reset email dispatch to ${user.email}:`, result);
     } else {
       const db = getFallbackDb();
       const user = db.users.find(u => u.email.toLowerCase() === email.toLowerCase().trim());
@@ -655,7 +656,8 @@ router.post('/forgot-password', async (req, res) => {
       user.resetTokenExpiry = resetExpires.toISOString();
       saveFallbackDb();
 
-      await sendPasswordResetEmail(user.email, resetToken, user.username);
+      const result = await sendPasswordResetEmail(user.email, resetToken, user.username);
+      console.log(`[Forgot Password] Reset email dispatch to ${user.email}:`, result);
     }
 
     res.json({ message: 'If an account exists with this email, a reset link will be sent.' });

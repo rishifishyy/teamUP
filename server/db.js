@@ -58,13 +58,17 @@ export async function connectDB() {
   
   try {
     const conn = await mongoose.connect(uri, {
-      serverSelectionTimeoutMS: 2000
+      serverSelectionTimeoutMS: 3000
     });
     isMongoConnected = true;
-    console.log(`✅ MongoDB Connected successfully: ${conn.connection.host}`);
+    console.log(`✅ [Database] MongoDB Connected successfully: ${conn.connection.host}`);
   } catch (err) {
     isMongoConnected = false;
-    console.log(`ℹ️ MongoDB not detected locally. Operating in resilient Local/JSON database mode (data/db_fallback.json).`);
+    console.warn(`⚠️ [Database] MongoDB not connected (${err.message}). Running in Fallback JSON mode (data/db_fallback.json).`);
+    if (process.env.RENDER || process.env.NODE_ENV === 'production') {
+      console.warn(`🚨 [CRITICAL FOR RENDER]: Render free tier has ephemeral disk! Any data saved to fallback JSON will be erased when the server sleeps or restarts.`);
+      console.warn(`👉 To fix permanently: Add MONGO_URI in your Render Environment Variables pointing to your free MongoDB Atlas cluster.`);
+    }
   }
 }
 
