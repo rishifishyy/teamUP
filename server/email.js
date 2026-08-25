@@ -42,7 +42,7 @@ export async function sendRawEmail({ to, subject, html }) {
   // 1. Prioritize Brevo HTTPS API (Works 100% on Render to ANY recipient without custom domain requirement)
   if (brevoApiKey && brevoApiKey.length > 5) {
     try {
-      const fromEmail = process.env.EMAIL_USER?.trim().replace(/^["']|["']$/g, '') || 'rishinehra1@gmail.com';
+      const fromEmail = process.env.BREVO_SENDER_EMAIL?.trim().replace(/^["']|["']$/g, '') || 'arr15demon@gmail.com';
       const res = await fetch('https://api.brevo.com/v3/smtp/email', {
         method: 'POST',
         headers: {
