@@ -57,15 +57,13 @@ export async function sendRawEmail({ to, subject, html }) {
       });
 
       const data = await res.json();
-      if (!res.ok) {
-        console.error('❌ Resend API error:', data);
-        return { success: false, provider: 'resend', error: data.message || JSON.stringify(data) };
+      if (res.ok) {
+        console.log(`✅ [Resend API] Email sent to ${to} (ID: ${data.id})`);
+        return { success: true, provider: 'resend', messageId: data.id };
       }
-      console.log(`✅ [Resend API] Email sent to ${to} (ID: ${data.id})`);
-      return { success: true, provider: 'resend', messageId: data.id };
+      console.warn('⚠️ [Resend API] Failed, falling back to SMTP:', data.message || JSON.stringify(data));
     } catch (err) {
-      console.error('❌ Resend API dispatch error:', err.message);
-      return { success: false, provider: 'resend', error: err.message };
+      console.warn('⚠️ [Resend API] Dispatch error, falling back to SMTP:', err.message);
     }
   }
 
