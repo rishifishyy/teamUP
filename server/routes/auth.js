@@ -5,6 +5,8 @@ import { getFallbackDb, saveFallbackDb, getIsMongoConnected } from '../db.js';
 import { User } from '../models/User.js';
 import { sendWelcomeEmail, sendPasswordResetEmail, sendAccountUpdateEmail, sendRegistrationOtpEmail, testEmailTransporter } from '../email.js';
 
+import { refreshFreePasses } from '../freePasses.js';
+
 const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'fortnite_teamup_super_secret_jwt_key_2026_production';
 
@@ -329,6 +331,7 @@ router.post('/login', async (req, res) => {
         return res.status(401).json({ error: 'Invalid username/email or password.' });
       }
 
+      await refreshFreePasses(user);
       if (checkSubscriptionExpiry(user)) {
         await user.save();
       }
@@ -354,6 +357,7 @@ router.post('/login', async (req, res) => {
         return res.status(401).json({ error: 'Invalid username/email or password.' });
       }
 
+      await refreshFreePasses(user);
       if (checkSubscriptionExpiry(user)) {
         saveFallbackDb(db);
       }
@@ -383,6 +387,7 @@ router.get('/me', async (req, res) => {
       const user = await User.findById(decoded.id).select('-password');
       if (!user) return res.status(404).json({ error: 'User not found.' });
 
+      await refreshFreePasses(user);
       if (checkSubscriptionExpiry(user)) {
         await user.save();
       }
@@ -393,6 +398,7 @@ router.get('/me', async (req, res) => {
       const user = findFallbackUser(db, decoded);
       if (!user) return res.status(404).json({ error: 'User not found.' });
 
+      await refreshFreePasses(user);
       if (checkSubscriptionExpiry(user)) {
         saveFallbackDb(db);
       }

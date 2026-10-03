@@ -6,6 +6,8 @@ import { User } from '../models/User.js';
 import { getFallbackDb, saveFallbackDb, getIsMongoConnected } from '../db.js';
 import { sendInviteReceivedEmail, sendInviteAcceptedEmail } from '../email.js';
 
+import { refreshFreePasses, freePassLimitError, freePassesUsed, consumeFreePass, refundFreePass } from '../freePasses.js';
+
 const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'fortnite_teamup_super_secret_jwt_key_2026_production';
 
@@ -58,17 +60,9 @@ async function handleSendMatchRequest(req, res) {
       const sender = await User.findById(currentUserId);
       if (!sender) return res.status(404).json({ error: 'User not found' });
 
-      // 1. Free Tier Rule: Max 2 Lifetime Free Matched Passes
-      if (!sender.isPremium) {
-        const freeUsed = (sender.postsCount || 0) + (sender.invitesCount || 0);
-        if (freeUsed >= 2) {
-          return res.status(403).json({
-            error: 'Free tier limit reached: You have used your 2 free match passes. Upgrade to VIP Premium to send unlimited invites!',
-            isFreeLimitReached: true,
-            freeUsed,
-            freeLimit: 2
-          });
-        }
+      await refreshFreePasses(sender);
+      if (!sender.isPremium && freePassesUsed(sender) >= 2) {
+        return res.status(403).json(freePassLimitError(sender));
       }
 
       // 2. Auto-expire any previous stale outgoing invites older than 10 mins
@@ -127,17 +121,9 @@ async function handleSendMatchRequest(req, res) {
       const sender = findFallbackUser(db, getAuthDecoded(req) || currentUserId);
       if (!sender) return res.status(404).json({ error: 'User not found' });
 
-      // 1. Free Tier Rule: Max 2 Lifetime Free Matched Passes
-      if (!sender.isPremium) {
-        const freeUsed = (sender.postsCount || 0) + (sender.invitesCount || 0);
-        if (freeUsed >= 2) {
-          return res.status(403).json({
-            error: 'Free tier limit reached: You have used your 2 free match passes. Upgrade to VIP Premium to send unlimited invites!',
-            isFreeLimitReached: true,
-            freeUsed,
-            freeLimit: 2
-          });
-        }
+      await refreshFreePasses(sender);
+      if (!sender.isPremium && freePassesUsed(sender) >= 2) {
+        return res.status(403).json(freePassLimitError(sender));
       }
 
       // Auto-expire stale invites older than 10 mins
@@ -589,24 +575,33 @@ router.post('/:matchId/accept', async (req, res) => {
         return res.status(400).json({ error: `This request is already ${matchReq.status}.` });
       }
 
-      matchReq.status = 'accepted';
-      matchReq.matchedAt = new Date();
-      await matchReq.save();
-
       const sender = await User.findById(matchReq.fromUserId);
       const receiver = await User.findById(currentUserId);
-
-      // 👉 DEDUCT PASSES ON SUCCESSFUL MATCH:
-      // For Receiver (Pool lookup owner)
-      if (receiver && !receiver.isPremium) {
-        receiver.postsCount = (receiver.postsCount || 0) + 1;
-        await receiver.save();
+      if (!sender || !receiver) return res.status(404).json({ error: 'Player account not found.' });
+      const matchedAt = new Date();
+      for (const user of [sender, receiver]) {
+        await refreshFreePasses(user, matchedAt);
+        if (!user.isPremium && freePassesUsed(user) >= 2) return res.status(403).json(freePassLimitError(user));
       }
-
-      // For Sender (Invite sender)
-      if (sender && !sender.isPremium) {
-        sender.invitesCount = (sender.invitesCount || 0) + 1;
-        await sender.save();
+      const claimed = await MatchRequest.findOneAndUpdate(
+        { _id: matchId, status: 'pending' }, { $set: { status: 'accepted', matchedAt } }, { returnDocument: 'after' }
+      );
+      if (!claimed) return res.status(400).json({ error: 'This request has already been processed.' });
+      const charged = [];
+      try {
+        for (const [user, counter] of [[receiver, 'postsCount'], [sender, 'invitesCount']]) {
+          const result = await consumeFreePass(user, counter, matchedAt);
+          if (!result.allowed) {
+            for (const [player, field] of charged) await refundFreePass(player, field);
+            await MatchRequest.updateOne({ _id: matchId }, { $set: { status: 'pending' }, $unset: { matchedAt: 1 } });
+            return res.status(403).json(freePassLimitError(user));
+          }
+          if (result.charged) charged.push([user, counter]);
+        }
+      } catch (error) {
+        for (const [player, field] of charged) await refundFreePass(player, field);
+        await MatchRequest.updateOne({ _id: matchId }, { $set: { status: 'pending' }, $unset: { matchedAt: 1 } });
+        throw error;
       }
 
       // Remove BOTH receiver's post AND sender's earlier lookup from the pool
@@ -633,7 +628,6 @@ router.post('/:matchId/accept', async (req, res) => {
         ).catch(e => console.warn('Match accepted email error:', e));
       }
 
-      const matchedAt = matchReq.matchedAt;
       const expiresAt = new Date(new Date(matchedAt).getTime() + 15 * 60 * 1000).toISOString();
 
       return res.json({ 
@@ -664,17 +658,29 @@ router.post('/:matchId/accept', async (req, res) => {
         return res.status(400).json({ error: `This request is already ${matchReq.status}.` });
       }
 
-      matchReq.status = 'accepted';
-      matchReq.matchedAt = new Date().toISOString();
       const sender = findFallbackUser(db, matchReq.fromUserId);
       const receiver = findFallbackUser(db, currentUserId);
-      
-      // 👉 DEDUCT PASSES ON SUCCESSFUL MATCH:
-      if (receiver && !receiver.isPremium) {
-        receiver.postsCount = (receiver.postsCount || 0) + 1;
+      if (!sender || !receiver) return res.status(404).json({ error: 'Player account not found.' });
+      const matchTime = new Date();
+      for (const user of [sender, receiver]) {
+        await refreshFreePasses(user, matchTime);
+        if (!user.isPremium && freePassesUsed(user) >= 2) return res.status(403).json(freePassLimitError(user));
       }
-      if (sender && !sender.isPremium) {
-        sender.invitesCount = (sender.invitesCount || 0) + 1;
+      // Recheck after asynchronous refresh to prevent a duplicate acceptance.
+      if (matchReq.status !== 'pending') return res.status(400).json({ error: 'This request has already been processed.' });
+      matchReq.status = 'accepted';
+      matchReq.matchedAt = matchTime.toISOString();
+      const charged = [];
+      for (const [user, counter] of [[receiver, 'postsCount'], [sender, 'invitesCount']]) {
+        const result = await consumeFreePass(user, counter, matchTime);
+        if (!result.allowed) {
+          for (const [player, field] of charged) await refundFreePass(player, field);
+          matchReq.status = 'pending';
+          delete matchReq.matchedAt;
+          saveFallbackDb(db);
+          return res.status(403).json(freePassLimitError(user));
+        }
+        if (result.charged) charged.push([user, counter]);
       }
 
       // Clean active posts for both receiver AND sender

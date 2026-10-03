@@ -90,6 +90,7 @@ const userSchema = new mongoose.Schema({
     type: String,
     default: ''
   },
+  freePassesRefillAt: { type: Date, default: null },
   postsCount: {
     type: Number,
     default: 0

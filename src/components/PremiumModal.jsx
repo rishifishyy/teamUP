@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { X, Crown, Check, Shield, Zap, Sparkles, LogIn, AlertCircle } from 'lucide-react';
 import { api } from '../services/api';
+import { freePassRefillMessage } from '../services/freePasses';
 
 const RAZORPAY_KEY_ID = 'rzp_test_TPHEppbyiA2Nyq';
 
@@ -173,7 +174,7 @@ export default function PremiumModal({ isOpen, onClose, currentUser, onUpgradeSu
               Unlimited Fortnite Teammate Matching
             </h2>
             <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', maxWidth: '380px', margin: '0 auto' }}>
-              Start with 2 free successful matches. Premium members can keep connecting after their free passes are used.
+              {freePassRefillMessage(currentUser)} Premium members can keep matching without waiting.
             </p>
           </div>
 

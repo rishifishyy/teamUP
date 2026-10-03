@@ -24,7 +24,7 @@ export default function LandingPage({ onStartFinder, onOpenAuthModal, onOpenPrem
               <button className="btn btn-primary btn-lg" onClick={onStartFinder}>Find my squad <ArrowUpRight size={19} /></button>
               <a className="hero-how-link" href="#how-it-works">How it works <ArrowRight size={16} /></a>
             </div>
-            <p className="hero-reassurance"><ShieldCheck size={15} /> Real players. Real requests. Start with 2 free matches.</p>
+            <p className="hero-reassurance"><ShieldCheck size={15} /> 2 free matches. Refill 14 days after your second match.</p>
           </div>
 
           <div className="squad-visual" role="img" aria-label="A squad radar connects your region, playstyle, and voice preferences to your next team.">

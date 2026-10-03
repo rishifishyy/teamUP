@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Gamepad2, Plus, User, LogIn, LogOut, Compass, Home, Moon, Sun, Crown, Bell, Zap, X, CheckCircle2, Clock, AlertCircle, Trash2, BellOff, MessageSquare } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { freePassesLeft, freePassRefillMessage } from '../services/freePasses';
 
 export default function Navbar({
   currentView,
@@ -43,9 +44,7 @@ export default function Navbar({
     };
   }, [isNotifOpen]);
 
-  const freePassesLeft = currentUser
-    ? Math.max(0, 2 - ((currentUser.postsCount || 0) + (currentUser.invitesCount || 0)))
-    : 2;
+  const passesLeft = freePassesLeft(currentUser);
 
   return (
     <header className="navbar">
@@ -110,7 +109,7 @@ export default function Navbar({
             <button 
               className="btn btn-outline" 
               onClick={onOpenPremium}
-              title="Upgrade to VIP"
+              title={freePassRefillMessage(currentUser)}
               style={{
                 color: '#eab308',
                 borderColor: '#eab308',
@@ -123,7 +122,7 @@ export default function Navbar({
                 fontSize: '0.8rem'
               }}
             >
-              <Zap size={14} /> Free: {freePassesLeft}/2 left
+              <Zap size={14} /> Free: {passesLeft}/2 left
             </button>
           ) : (
             <button 

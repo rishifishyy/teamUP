@@ -4,6 +4,8 @@ import { Request } from '../models/Request.js';
 import { User } from '../models/User.js';
 import { getFallbackDb, saveFallbackDb, getIsMongoConnected } from '../db.js';
 
+import { refreshFreePasses, freePassLimitError, freePassesUsed } from '../freePasses.js';
+
 const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'fortnite_teamup_super_secret_jwt_key_2026_production';
 
@@ -112,17 +114,9 @@ router.post('/', async (req, res) => {
       userAge = user.age || 18;
       isUserPremium = Boolean(user.isPremium);
 
-      // 1. Free Tier Rule: Max 2 Lifetime Free Matched Passes
-      if (!isUserPremium) {
-        const freeUsed = (user.postsCount || 0) + (user.invitesCount || 0);
-        if (freeUsed >= 2) {
-          return res.status(403).json({
-            error: 'Free tier limit reached: You have used your 2 free match passes. Upgrade to VIP Premium for unlimited matching in the pool!',
-            isFreeLimitReached: true,
-            freeUsed,
-            freeLimit: 2
-          });
-        }
+      await refreshFreePasses(user);
+      if (!user.isPremium && freePassesUsed(user) >= 2) {
+        return res.status(403).json(freePassLimitError(user));
       }
 
       // 1 Active Lookup in the pool at a time (delete any previous lookup by this user)
@@ -164,17 +158,9 @@ router.post('/', async (req, res) => {
       userAge = user.age || 18;
       isUserPremium = Boolean(user.isPremium);
 
-      // 1. Free Tier Rule: Max 2 Lifetime Free Matched Passes
-      if (!isUserPremium) {
-        const freeUsed = (user.postsCount || 0) + (user.invitesCount || 0);
-        if (freeUsed >= 2) {
-          return res.status(403).json({
-            error: 'Free tier limit reached: You have used your 2 free match passes. Upgrade to VIP Premium for unlimited matching in the pool!',
-            isFreeLimitReached: true,
-            freeUsed,
-            freeLimit: 2
-          });
-        }
+      await refreshFreePasses(user);
+      if (!user.isPremium && freePassesUsed(user) >= 2) {
+        return res.status(403).json(freePassLimitError(user));
       }
 
       // 1 Active Lookup in the pool at a time (clean previous)

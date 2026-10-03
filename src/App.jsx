@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Navbar from './components/Navbar';
 import AmbientBackground from './components/AmbientBackground';
+import { freePassesLeft, freePassRefillMessage } from './services/freePasses';
 import LandingPage from './components/LandingPage';
 import PlayerCard from './components/PlayerCard';
 import PostWizard from './components/PostWizard';
@@ -99,7 +100,16 @@ export default function App() {
   }, [theme]);
 
   const toggleTheme = () => {
-    setTheme(prev => prev === 'dark' ? 'light' : 'dark');
+    const nextTheme = theme === 'dark' ? 'light' : 'dark';
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (document.startViewTransition && !reducedMotion) {
+      document.startViewTransition(() => {
+        document.documentElement.setAttribute('data-theme', nextTheme);
+        setTheme(nextTheme);
+      });
+    } else {
+      setTheme(nextTheme);
+    }
   };
 
   useEffect(() => {
@@ -368,9 +378,8 @@ export default function App() {
       return;
     }
 
-    const freeUsed = (currentUser.postsCount || 0) + (currentUser.invitesCount || 0);
-    if (!currentUser.isPremium && freeUsed >= 2) {
-      showToast('You have used your 2 free requests! Upgrade to VIP for unlimited broadcasts and matching.', 'warning');
+    if (!currentUser.isPremium && freePassesLeft(currentUser) === 0) {
+      showToast(freePassRefillMessage(currentUser), 'warning');
       setIsPremiumModalOpen(true);
       return;
     }
@@ -395,10 +404,9 @@ export default function App() {
       return;
     }
 
-    const freeUsed = (currentUser.postsCount || 0) + (currentUser.invitesCount || 0);
-    if (!currentUser.isPremium && freeUsed >= 2) {
+    if (!currentUser.isPremium && freePassesLeft(currentUser) === 0) {
       setIsPostModalOpen(false);
-      showToast('You have used your 2 free requests! Upgrade to VIP for unlimited broadcasts and matching.', 'warning');
+      showToast(freePassRefillMessage(currentUser), 'warning');
       setIsPremiumModalOpen(true);
       return;
     }
@@ -443,7 +451,8 @@ export default function App() {
       if (err.isFreeLimitReached || msg.includes('Free tier') || msg.includes('free requests') || msg.includes('Upgrade to VIP') || msg.includes('403')) {
         setIsPostModalOpen(false);
         setIsPremiumModalOpen(true);
-        showToast('Free tier limit reached: You have used your 2 free requests. Upgrade to VIP for unlimited broadcasts!', 'warning');
+        showToast(err.message || freePassRefillMessage(currentUser), 'warning');
+        loadUser();
       } else {
         showToast(msg || 'Failed to publish request.', 'warning');
       }
@@ -458,9 +467,8 @@ export default function App() {
       return;
     }
 
-    const freeUsed = (currentUser.postsCount || 0) + (currentUser.invitesCount || 0);
-    if (!currentUser.isPremium && freeUsed >= 2) {
-      showToast('You have used your 2 free requests! Upgrade to VIP for unlimited broadcasts and matching.', 'warning');
+    if (!currentUser.isPremium && freePassesLeft(currentUser) === 0) {
+      showToast(freePassRefillMessage(currentUser), 'warning');
       setIsPremiumModalOpen(true);
       return;
     }
@@ -472,10 +480,9 @@ export default function App() {
   const handleConfirmSendInvite = async (setupData) => {
     if (!pendingInviteTarget) return;
 
-    const freeUsed = (currentUser?.postsCount || 0) + (currentUser?.invitesCount || 0);
-    if (!currentUser?.isPremium && freeUsed >= 2) {
+    if (!currentUser?.isPremium && freePassesLeft(currentUser) === 0) {
       setIsSendInviteModalOpen(false);
-      showToast('You have used your 2 free requests! Upgrade to VIP for unlimited broadcasts and matching.', 'warning');
+      showToast(freePassRefillMessage(currentUser), 'warning');
       setIsPremiumModalOpen(true);
       return;
     }
@@ -514,7 +521,8 @@ export default function App() {
       if (err.isFreeLimitReached || msg.includes('Free tier') || msg.includes('free requests') || msg.includes('Upgrade to VIP') || msg.includes('403')) {
         setIsSendInviteModalOpen(false);
         setIsPremiumModalOpen(true);
-        showToast('Free tier limit reached: You have used your 2 free requests. Upgrade to VIP for unlimited invites!', 'warning');
+        showToast(err.message || freePassRefillMessage(currentUser), 'warning');
+        loadUser();
       } else {
         showToast(msg || 'Failed to send request.', 'warning');
       }

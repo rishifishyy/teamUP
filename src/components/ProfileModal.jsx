@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Check, User, Mail, Lock, Gamepad2, Sparkles, Crown, Eye, EyeOff } from 'lucide-react';
+import { freePassesLeft, freePassRefillMessage } from '../services/freePasses';
 
 const AVATAR_PRESETS = [
   'ShadowViper', 'AeroPhantom', 'FrostSniper', 'KitsuneFlow',
@@ -100,12 +101,12 @@ export default function ProfileModal({ isOpen, onClose, currentUser, onUpdatePro
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 800, color: currentUser.isPremium ? '#fbbf24' : 'var(--text-main)', fontSize: '0.95rem' }}>
                 <Crown size={16} style={{ fill: currentUser.isPremium ? '#fbbf24' : 'none' }} />
-                {currentUser.isPremium ? '👑 Premium VIP Member' : 'Free Tier (2 successful matches)'}
+                {currentUser.isPremium ? '👑 Premium VIP Member' : `Free Tier (${freePassesLeft(currentUser)}/2 passes left)`}
               </div>
               <p style={{ margin: '0.2rem 0 0', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
                 {currentUser.isPremium
                   ? `Plan: ${currentUser.subscription?.plan || 'Active'} · Unlimited matching enabled`
-                  : 'Your free passes are used when a teammate accepts a match. Go VIP for unlimited matching.'}
+                  : freePassRefillMessage(currentUser)}
               </p>
             </div>
             <button

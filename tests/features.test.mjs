@@ -13,6 +13,8 @@ const { mail } = await import('./mock-email.mjs');
 const { payments } = await import('./mock-razorpay.mjs');
 const { User } = await import('../server/models/User.js');
 const { Request } = await import('../server/models/Request.js');
+const { refreshFreePasses, consumeFreePass, FREE_PASS_REFILL_MS } = await import('../server/freePasses.js');
+const { freePassesLeft } = await import('../src/services/freePasses.js');
 
 await test('TeamUP feature regression checks (isolated data and providers)', async t => {
   const server = app.listen(0, '127.0.0.1');
@@ -177,6 +179,78 @@ await test('TeamUP feature regression checks (isolated data and providers)', asy
       limited.invitesCount = 2;
       await expect('/requests', 'POST', postData, b.token, 403);
       await expect(`/matches/${request.id}/request`, 'POST', {}, b.token, 403);
+    });
+    await t.test('free passes start the 14-day timer only after the second accepted match', async () => {
+      const { a, b } = await fixture();
+      for (let round = 1; round <= 2; round++) {
+        await send(b, await post(a));
+        const match = getFallbackDb().matchRequests.findLast(m => m.status === 'pending');
+        await expect(`/matches/${match.id}/accept`, 'POST', undefined, a.token, 200);
+        for (const account of [a, b]) {
+          const user = (await expect('/auth/me', 'GET', undefined, account.token, 200)).user;
+          assert.equal(freePassesLeft(user), 2 - round);
+          if (round === 1) assert.equal(user.freePassesRefillAt, null);
+          else assert.ok(Math.abs(new Date(user.freePassesRefillAt).getTime() - Date.now() - FREE_PASS_REFILL_MS) < 3000);
+        }
+      }
+      const blocked = await expect('/requests', 'POST', postData, a.token, 403);
+      assert.ok(blocked.freePassesRefillAt);
+      const player = getFallbackDb().users.find(u => u.id === a.user.id);
+      const deadline = new Date(player.freePassesRefillAt);
+      assert.equal(await refreshFreePasses(player, new Date(deadline.getTime() - 1)), false);
+      assert.equal(freePassesLeft(player, deadline.getTime() - 1), 0);
+      assert.equal(await refreshFreePasses(player, deadline), true);
+      assert.equal(player.postsCount + player.invitesCount, 0);
+      assert.equal(player.freePassesRefillAt, null);
+      assert.equal(freePassesLeft(player), 2);
+      await post(a);
+    });
+    await t.test('expired passes refill through login, profile, posting, invitations and acceptance', async () => {
+      const { a, b } = await fixture();
+      const exhaust = account => {
+        const user = getFallbackDb().users.find(u => u.id === account.user.id);
+        user.invitesCount = 2;
+        user.freePassesRefillAt = new Date(Date.now() - 1000).toISOString();
+        return user;
+      };
+      exhaust(a);
+      const login = await expect('/auth/login', 'POST', { loginOrEmail: a.details.email, password: a.details.password }, null, 200);
+      assert.equal(login.user.invitesCount, 0);
+      exhaust(a);
+      assert.equal((await expect('/auth/me', 'GET', undefined, a.token, 200)).user.invitesCount, 0);
+      exhaust(a);
+      const request = await post(a);
+      exhaust(b);
+      await send(b, request);
+      assert.equal(getFallbackDb().users.find(u => u.id === b.user.id).invitesCount, 0);
+      const bUser = exhaust(b);
+      bUser.freePassesRefillAt = new Date(Date.now() + FREE_PASS_REFILL_MS).toISOString();
+      const match = getFallbackDb().matchRequests[0];
+      await expect(`/matches/${match.id}/accept`, 'POST', undefined, a.token, 403);
+      assert.equal(match.status, 'pending');
+      assert.equal(getFallbackDb().users.find(u => u.id === a.user.id).postsCount, 0);
+      bUser.freePassesRefillAt = new Date(Date.now() - 1).toISOString();
+      await expect(`/matches/${match.id}/accept`, 'POST', undefined, a.token, 200);
+      assert.equal(bUser.invitesCount, 1);
+      assert.equal(bUser.freePassesRefillAt, null);
+    });
+    await t.test('premium keeps unlimited matching and membership when free passes refill', async () => {
+      const { a } = await fixture();
+      const user = getFallbackDb().users.find(u => u.id === a.user.id);
+      user.isPremium = true;
+      user.subscription = { plan: '3 Months', endDate: new Date(Date.now() + 30 * 86400000).toISOString(), history: [] };
+      user.postsCount = 2;
+      user.freePassesRefillAt = new Date(Date.now() - 1).toISOString();
+      const subscription = JSON.stringify(user.subscription);
+      await refreshFreePasses(user);
+      assert.equal(user.postsCount + user.invitesCount, 0);
+      assert.equal(user.isPremium, true);
+      assert.equal(JSON.stringify(user.subscription), subscription);
+      for (let i = 0; i < 3; i++) assert.deepEqual(await consumeFreePass(user, 'postsCount'), { allowed: true, charged: false });
+      assert.equal(user.postsCount, 0);
+      await post(a);
+      const doc = new User({ username: 'SchemaRefill', email: 'refill@example.test', password: 'hash', epicTag: 'RefillEpic', age: 20, gender: 'Other', freePassesRefillAt: new Date() });
+      assert.ok(doc.freePassesRefillAt instanceof Date);
     });
     await t.test('expired invites cannot be accepted and expired chats cannot send', async () => {
       const { a, b } = await fixture();

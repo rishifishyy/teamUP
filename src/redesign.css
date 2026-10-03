@@ -111,3 +111,15 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 @media (max-width:430px) { .modal-body > .form-row:first-child { grid-template-columns: 1fr; } .brand-logo { gap: 8px; }.brand-name { font-size: 21px; }.nav-actions { gap: 6px; }.nav-actions > .btn { padding: 8px !important; font-size: 11px; }.nav-actions .btn-icon { min-width: 35px; width: 35px; } }
 @media (max-width:380px) { .container { padding-inline: 17px; }.nav-actions { gap: 5px; }.nav-actions > .btn { padding: 8px !important; font-size: 11px; }.nav-actions .btn-icon { min-width: 35px; width: 35px; height: 38px; }.hero-main-heading { font-size: 38px; }.radar-node { padding: 8px; gap: 6px; }.radar-node strong { font-size: 10px; }.radar-node small { font-size: 4px; }.node-icon { width: 25px; height: 25px; }.node-region { left: 5%; }.node-comms { left: 7%; }.visual-topline,.visual-bottomline { left: 18px; right: 18px; }.hero-reassurance { font-size: 9px; } }
 @media (prefers-reduced-motion:reduce) { html { scroll-behavior: auto; } *,*::before,*::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }.atmosphere-glow { will-change: auto; }.radar-sweep { animation: none !important; transform: translate(-50%,-50%); } }
+
+/* Crossfade the complete page only when the theme button is clicked. */
+::view-transition-old(root) { animation: theme-fade-out 420ms ease-in-out both; }
+::view-transition-new(root) { animation: theme-fade-in 420ms ease-in-out both; }
+@keyframes theme-fade-out { to { opacity: 0; } }
+@keyframes theme-fade-in { from { opacity: 0; } }
+@supports not (view-transition-name: root) {
+  body, .navbar, .card, .modal-box, .modal-head, .toast, input, select, textarea, .btn, .squad-core, .squad-visual, .radar-node { transition: background-color 420ms ease, color 420ms ease, border-color 420ms ease, box-shadow 420ms ease; }
+}
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(root), ::view-transition-new(root) { animation: none !important; }
+}
