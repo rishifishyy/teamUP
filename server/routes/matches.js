@@ -86,7 +86,7 @@ async function handleSendMatchRequest(req, res) {
       }
 
       const targetPost = await Request.findById(targetPostId);
-      if (!targetPost) return res.status(404).json({ error: 'Request no longer available.' });
+      if (!targetPost || targetPost.isHidden || Date.now() - new Date(targetPost.createdAt).getTime() >= 15 * 60 * 1000) return res.status(404).json({ error: 'Request no longer available.' });
       if (String(targetPost.userId) === String(currentUserId)) {
         return res.status(400).json({ error: 'You cannot request yourself.' });
       }
@@ -161,7 +161,7 @@ async function handleSendMatchRequest(req, res) {
       }
 
       const targetPost = db.requests.find(r => String(r.id) === String(targetPostId) || String(r._id) === String(targetPostId));
-      if (!targetPost) return res.status(404).json({ error: 'Request no longer available.' });
+      if (!targetPost || targetPost.isHidden || Date.now() - new Date(targetPost.createdAt).getTime() >= 15 * 60 * 1000) return res.status(404).json({ error: 'Request no longer available.' });
       if (String(targetPost.userId) === String(sender.id) || String(targetPost.userId) === String(sender._id)) {
         return res.status(400).json({ error: 'You cannot request yourself.' });
       }
@@ -348,6 +348,13 @@ router.get('/notifications', async (req, res) => {
           postMode: post?.mainMode || 'Battle Royale',
           senderName: sender.username,
           senderEpic: sender.epicTag,
+          postMainMode: post?.mainMode || 'Ranked',
+          senderPlatform: m.senderPlatform || 'PC',
+          senderRank: m.senderRank || 'Unranked',
+          senderRegion: m.senderRegion || sender.region || 'NA-East',
+          senderLang: m.senderLang || sender.langPrimary || 'English',
+          senderMic: m.senderMic || (sender.hasMic ? 'Yes' : 'No'),
+          senderNote: m.senderNote || '',
           createdAt: m.createdAt
         };
       }));
@@ -381,6 +388,8 @@ router.get('/notifications', async (req, res) => {
       const acceptedMatch = await MatchRequest.findOne({
         fromUserId: currentUserId,
         status: 'accepted',
+        isChatEnded: { $ne: true },
+        matchedAt: { $gte: new Date(Date.now() - 15 * 60 * 1000) },
         isDismissedBySender: { $ne: true }
       }).sort({ matchedAt: -1 });
 
@@ -392,7 +401,9 @@ router.get('/notifications', async (req, res) => {
           type: 'match_accepted',
           title: `🎉 Match Accepted!`,
           subtitle: `${receiver?.username || 'Teammate'} accepted your invite. Match Chat active!`,
-          matchedPlayer: receiver?.username || 'Teammate',
+          matchId: String(acceptedMatch._id),
+          expiresAt: new Date(new Date(acceptedMatch.matchedAt).getTime() + 15 * 60 * 1000).toISOString(),
+          matchedPlayer: { username: receiver?.username || 'Teammate', epicTag: receiver?.epicTag || '', discordId: receiver?.discordId || '', psnId: receiver?.psnId || '', xboxId: receiver?.xboxId || '' },
           matchedAt: acceptedMatch.matchedAt
         };
       }
@@ -434,6 +445,13 @@ router.get('/notifications', async (req, res) => {
             postMode: post?.mainMode || 'Battle Royale',
             senderName: sender.username,
             senderEpic: sender.epicTag,
+            postMainMode: post?.mainMode || 'Ranked',
+            senderPlatform: m.senderPlatform || 'PC',
+            senderRank: m.senderRank || 'Unranked',
+            senderRegion: m.senderRegion || sender.region || 'NA-East',
+            senderLang: m.senderLang || sender.langPrimary || 'English',
+            senderMic: m.senderMic || (sender.hasMic ? 'Yes' : 'No'),
+            senderNote: m.senderNote || '',
             createdAt: m.createdAt
           };
         }).filter(Boolean);
@@ -461,7 +479,7 @@ router.get('/notifications', async (req, res) => {
 
       // C. Accepted
       const acceptedMatch = (db.matchRequests || []).find(m => 
-        userIds.includes(String(m.fromUserId)) && m.status === 'accepted' && !m.isDismissedBySender
+        userIds.includes(String(m.fromUserId)) && m.status === 'accepted' && !m.isDismissedBySender && !m.isChatEnded && Date.now() - new Date(m.matchedAt).getTime() < 15 * 60 * 1000
       );
       let accepted = null;
       if (acceptedMatch) {
@@ -471,7 +489,9 @@ router.get('/notifications', async (req, res) => {
           type: 'match_accepted',
           title: `🎉 Match Accepted!`,
           subtitle: `${receiver?.username || 'Teammate'} accepted your invite. Match Chat active!`,
-          matchedPlayer: receiver?.username || 'Teammate',
+          matchId: String(acceptedMatch.id || acceptedMatch._id),
+          expiresAt: new Date(new Date(acceptedMatch.matchedAt).getTime() + 15 * 60 * 1000).toISOString(),
+          matchedPlayer: { username: receiver?.username || 'Teammate', epicTag: receiver?.epicTag || '', discordId: receiver?.discordId || '', psnId: receiver?.psnId || '', xboxId: receiver?.xboxId || '' },
           matchedAt: acceptedMatch.matchedAt
         };
       }
@@ -538,6 +558,7 @@ router.delete('/notifications/:matchId', async (req, res) => {
       const db = getFallbackDb();
       const match = (db.matchRequests || []).find(m => String(m.id) === String(matchId) || String(m._id) === String(matchId));
       if (match) {
+        if (String(match.fromUserId) !== String(currentUserId)) return res.status(403).json({ error: 'Forbidden' });
         match.isDismissedBySender = true;
         saveFallbackDb();
       }
@@ -560,6 +581,9 @@ router.post('/:matchId/accept', async (req, res) => {
       if (!matchReq) {
         return res.status(404).json({ error: 'Match request not found.' });
       }
+
+      if (String(matchReq.toUserId) !== String(currentUserId)) return res.status(403).json({ error: 'Only the invited player can accept this request.' });
+      if (Date.now() - new Date(matchReq.createdAt).getTime() >= 10 * 60 * 1000) return res.status(400).json({ error: 'This invite has expired.' });
 
       if (matchReq.status !== 'pending') {
         return res.status(400).json({ error: `This request is already ${matchReq.status}.` });
@@ -632,6 +656,9 @@ router.post('/:matchId/accept', async (req, res) => {
       if (!matchReq) {
         return res.status(404).json({ error: 'Match request not found.' });
       }
+
+      if (String(matchReq.toUserId) !== String(currentUserId)) return res.status(403).json({ error: 'Only the invited player can accept this request.' });
+      if (Date.now() - new Date(matchReq.createdAt).getTime() >= 10 * 60 * 1000) return res.status(400).json({ error: 'This invite has expired.' });
 
       if (matchReq.status !== 'pending') {
         return res.status(400).json({ error: `This request is already ${matchReq.status}.` });
@@ -708,7 +735,11 @@ router.post('/:matchId/decline', async (req, res) => {
     if (!currentUserId) return res.status(401).json({ error: 'Unauthorized' });
 
     if (getIsMongoConnected()) {
-      await MatchRequest.findByIdAndUpdate(matchId, {
+      const match = await MatchRequest.findById(matchId);
+      if (!match) return res.status(404).json({ error: 'Match request not found.' });
+      if (String(match.toUserId) !== String(currentUserId)) return res.status(403).json({ error: 'Only the invited player can decline this request.' });
+      if (match.status !== 'pending') return res.status(400).json({ error: `This request is already ${match.status}.` });
+      await MatchRequest.findOneAndUpdate({ _id: matchId, toUserId: currentUserId, status: 'pending' }, {
         status: 'declined',
         declinedReason: 'rejected_by_user',
         declinedAt: new Date()
@@ -716,7 +747,10 @@ router.post('/:matchId/decline', async (req, res) => {
     } else {
       const db = getFallbackDb();
       const matchReq = (db.matchRequests || []).find(m => String(m.id) === matchId || String(m._id) === matchId);
-      if (matchReq) {
+      if (!matchReq) return res.status(404).json({ error: 'Match request not found.' });
+      if (String(matchReq.toUserId) !== String(currentUserId)) return res.status(403).json({ error: 'Only the invited player can decline this request.' });
+      if (matchReq.status !== 'pending') return res.status(400).json({ error: `This request is already ${matchReq.status}.` });
+      {
         matchReq.status = 'declined';
         matchReq.declinedReason = 'rejected_by_user';
         matchReq.declinedAt = new Date().toISOString();
@@ -807,8 +841,12 @@ router.post('/dismiss', async (req, res) => {
 
     if (getIsMongoConnected()) {
       await MatchRequest.updateMany(
-        { $or: [{ fromUserId: currentUserId }, { toUserId: currentUserId }], status: 'accepted' },
-        { isDismissedBySender: true, isChatEnded: true, chatEndedAt: new Date() }
+        { fromUserId: currentUserId, status: 'accepted' },
+        { isDismissedBySender: true }
+      );
+      await MatchRequest.updateMany(
+        { toUserId: currentUserId, status: 'accepted' },
+        { isDismissedByReceiver: true }
       );
     } else {
       const db = getFallbackDb();
@@ -816,10 +854,9 @@ router.post('/dismiss', async (req, res) => {
       const userIds = user ? [String(user.id), String(user._id)] : [String(currentUserId)];
 
       (db.matchRequests || []).forEach(m => {
-        if ((userIds.includes(String(m.fromUserId)) || userIds.includes(String(m.toUserId))) && m.status === 'accepted') {
-          m.isDismissedBySender = true;
-          m.isChatEnded = true;
-          m.chatEndedAt = new Date().toISOString();
+        if (m.status === 'accepted') {
+          if (userIds.includes(String(m.fromUserId))) m.isDismissedBySender = true;
+          if (userIds.includes(String(m.toUserId))) m.isDismissedByReceiver = true;
         }
       });
       saveFallbackDb();

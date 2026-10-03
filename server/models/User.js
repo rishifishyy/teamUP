@@ -38,6 +38,9 @@ const userSchema = new mongoose.Schema({
     trim: true,
     default: ''
   },
+  nintendoId: { type: String, trim: true, default: '' },
+  resetToken: { type: String, default: null, select: false },
+  resetTokenExpiry: { type: Date, default: null, select: false },
   region: {
     type: String,
     default: 'NA-East'

@@ -100,12 +100,12 @@ export default function ProfileModal({ isOpen, onClose, currentUser, onUpdatePro
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 800, color: currentUser.isPremium ? '#fbbf24' : 'var(--text-main)', fontSize: '0.95rem' }}>
                 <Crown size={16} style={{ fill: currentUser.isPremium ? '#fbbf24' : 'none' }} />
-                {currentUser.isPremium ? '👑 Premium VIP Member' : 'Free Tier (1 post / 7 days)'}
+                {currentUser.isPremium ? '👑 Premium VIP Member' : 'Free Tier (2 successful matches)'}
               </div>
               <p style={{ margin: '0.2rem 0 0', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
                 {currentUser.isPremium
                   ? `Plan: ${currentUser.subscription?.plan || 'Active'} · Unlimited matching enabled`
-                  : 'Upgrade to bypass the 7-day cooldown and post unlimited requests.'}
+                  : 'Your free passes are used when a teammate accepts a match. Go VIP for unlimited matching.'}
               </p>
             </div>
             <button

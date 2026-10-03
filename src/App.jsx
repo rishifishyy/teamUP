@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Navbar from './components/Navbar';
+import AmbientBackground from './components/AmbientBackground';
 import LandingPage from './components/LandingPage';
 import PlayerCard from './components/PlayerCard';
 import PostWizard from './components/PostWizard';
@@ -80,18 +81,21 @@ export default function App() {
   const [notifications, setNotifications] = useState({ totalCount: 0, incoming: [], declined: [], accepted: null });
   const [isIncomingModalOpen, setIsIncomingModalOpen] = useState(false);
   const [toasts, setToasts] = useState([]);
+  const liveSession = useRef({ isChatOpen, username: currentUser?.username });
+  useEffect(() => {
+    liveSession.current = { isChatOpen, username: currentUser?.username };
+  }, [isChatOpen, currentUser?.username]);
   const [theme, setTheme] = useState(() => {
-    // Clear legacy dark mode preference
-    const legacy = localStorage.getItem('teamup_theme');
-    if (legacy === 'dark') {
-      localStorage.removeItem('teamup_theme');
-    }
-    return localStorage.getItem('teamup_theme_v2') || 'light';
+    try {
+      const saved = localStorage.getItem('teamup_theme_v2') || localStorage.getItem('teamup_theme');
+      return ['light', 'dark'].includes(saved) ? saved : 'dark';
+    } catch { return 'dark'; }
   });
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
-    localStorage.setItem('teamup_theme_v2', theme);
+    try { localStorage.setItem('teamup_theme_v2', theme); } catch { /* Theme works without storage. */ }
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', theme === 'dark' ? '#090e10' : '#f5f7f3');
   }, [theme]);
 
   const toggleTheme = () => {
@@ -110,6 +114,7 @@ export default function App() {
       const token = localStorage.getItem('teamup_token');
       if (!token) return;
       const user = await api.getMe();
+      if (localStorage.getItem('teamup_token') !== token) return;
       if (user) {
         setCurrentUser(user);
         localStorage.setItem('teamup_user_profile', JSON.stringify(user));
@@ -118,11 +123,7 @@ export default function App() {
         localStorage.removeItem('teamup_user_profile');
         setCurrentUser(null);
       }
-    } catch {
-      localStorage.removeItem('teamup_token');
-      localStorage.removeItem('teamup_user_profile');
-      setCurrentUser(null);
-    }
+    } catch { /* Keep the session during a temporary network or server failure. */ }
   };
 
   const fetchRequests = async () => {
@@ -130,9 +131,11 @@ export default function App() {
       const data = await api.getRequests();
       setRequests(data);
       
-      if (localStorage.getItem('teamup_token')) {
+      const sessionToken = localStorage.getItem('teamup_token');
+      if (sessionToken) {
         loadUser();
         const notifs = await api.getNotifications();
+        if (localStorage.getItem('teamup_token') !== sessionToken) return;
         if (notifs) {
           setNotifications(notifs);
           setIncomingRequests(notifs.incoming || []);
@@ -145,6 +148,7 @@ export default function App() {
         }
 
         const activeChatRes = await api.getActiveChatSession();
+        if (localStorage.getItem('teamup_token') !== sessionToken) return;
         if (activeChatRes && activeChatRes.hasActiveChat) {
           localStorage.setItem('teamup_active_chat', JSON.stringify(activeChatRes));
           setActiveChatData(activeChatRes);
@@ -153,18 +157,18 @@ export default function App() {
           const ackKey = `teamup_ack_end_${activeChatRes.matchId}`;
           if (!localStorage.getItem(ackKey)) {
             localStorage.setItem(ackKey, 'true');
-            if (currentUser?.username !== endedBy) {
+            if (liveSession.current.username !== endedBy) {
               setChatEndedAlertData({ endedBy });
               showToast(`🛑 Match Chat Ended: "${endedBy}" has ended the chat session.`, 'warning');
             }
           }
-          if (!isChatOpen) {
+          if (!liveSession.current.isChatOpen) {
             localStorage.removeItem('teamup_active_chat');
             setActiveChatData(null);
             setHasUnreadChat(false);
           }
         } else if (activeChatRes && activeChatRes.hasActiveChat === false) {
-          if (!isChatOpen) {
+          if (!liveSession.current.isChatOpen) {
             localStorage.removeItem('teamup_active_chat');
             setActiveChatData(null);
             setHasUnreadChat(false);
@@ -315,6 +319,16 @@ export default function App() {
     localStorage.removeItem('teamup_token');
     localStorage.removeItem('teamup_user_profile');
     setCurrentUser(null);
+    localStorage.removeItem('teamup_active_chat');
+    setActiveChatData(null);
+    setMatchModalData(null);
+    setIsChatOpen(false);
+    setIsMatchModalOpen(false);
+    setIsIncomingModalOpen(false);
+    setIncomingRequests([]);
+    setNotifications({ totalCount: 0, incoming: [], declined: [], accepted: null });
+    setHasUnreadChat(false);
+    setChatEndedAlertData(null);
     showToast('Logged out successfully', 'info');
   };
 
@@ -326,7 +340,12 @@ export default function App() {
   };
 
   const handleDeletePost = async (id) => {
-    await api.deleteRequest(id);
+    try {
+      await api.deleteRequest(id);
+    } catch (err) {
+      showToast(err.message || 'Failed to remove teammate request.', 'warning');
+      return;
+    }
     const updated = requests.filter(r => (r.id !== id && r._id !== id));
     setRequests(updated);
 
@@ -638,10 +657,10 @@ export default function App() {
 
   return (
     <div className="app-root">
-
+      <AmbientBackground />
       <Navbar
         currentView={currentView}
-        onNavigate={(view) => setCurrentView(view)}
+        onNavigate={(view) => { setCurrentView(view); window.scrollTo({ top: 0, behavior: 'instant' }); }}
         onOpenPostModal={handleOpenPostModal}
         onOpenAuthModal={(tab) => {
           setAuthInitialTab(tab || 'login');
@@ -675,7 +694,7 @@ export default function App() {
             transition={{ duration: 0.3 }}
           >
             <LandingPage
-              onStartFinder={() => setCurrentView('livePool')}
+              onStartFinder={() => { setCurrentView('livePool'); window.scrollTo({ top: 0, behavior: 'instant' }); }}
               onOpenAuthModal={(tab) => {
                 setAuthInitialTab(tab);
                 setIsAuthModalOpen(true);
@@ -694,178 +713,29 @@ export default function App() {
             transition={{ duration: 0.4, type: "spring", bounce: 0.15 }}
           >
             
-            {/* Live Pool Hero Header */}
-            <section className="hero-header" style={{ padding: '2.5rem 0 1.5rem', textAlign: 'center' }}>
+            <section className="pool-intro">
               <div className="container">
-                <motion.div
-                  initial={{ y: -12, opacity: 0 }}
-                  animate={{ y: 0, opacity: 1 }}
-                  transition={{ duration: 0.35 }}
-                >
-                  <h1 className="hero-title" style={{ fontSize: '2.4rem', fontWeight: '800', marginBottom: '0.5rem' }}>
-                    Live <span className="highlight">Matchmaking Pool</span> ⚡
-                  </h1>
-                  <p className="hero-desc" style={{ maxWidth: '640px', margin: '0 auto 1.5rem', color: 'var(--text-secondary)' }}>
-                    Real-time teammate requests from active Fortnite players. Send a request or broadcast your own to find a squad immediately.
-                  </p>
-
-                  {/* Primary Action Buttons */}
-                  <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '1rem', flexWrap: 'wrap', marginBottom: '1.25rem' }}>
-                    <button
-                      type="button"
-                      className="btn btn-primary"
-                      onClick={handleOpenPostModal}
-                      style={{
-                        padding: '0.75rem 1.6rem',
-                        fontSize: '0.96rem',
-                        fontWeight: '700',
-                        boxShadow: '0 4px 20px rgba(59, 130, 246, 0.35)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.5rem'
-                      }}
-                    >
-                      <Plus size={18} /> + Post Teammate Request
-                    </button>
-
-                    <button
-                      type="button"
-                      className="btn btn-outline"
-                      onClick={() => {
-                        showToast('Refreshing live feed...', 'info');
-                        fetchRequests();
-                      }}
-                      style={{
-                        padding: '0.75rem 1.4rem',
-                        fontSize: '0.96rem',
-                        fontWeight: '600',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.5rem'
-                      }}
-                    >
-                      <RefreshCw size={16} /> Refresh Feed
-                    </button>
-                  </div>
-                </motion.div>
+                <div><p className="eyebrow"><span className="signal-dot" /> THE MATCHMAKING POOL</p><h1>Find your next teammate.</h1><p>Browse real player requests, narrow down your game plan, and make your next connection.</p></div>
+                <div className="pool-actions">
+                  <button type="button" className="btn btn-primary" onClick={handleOpenPostModal}><Plus size={17} /> Post a request</button>
+                  <button type="button" className="btn btn-outline" onClick={() => { showToast('Refreshing live feed...', 'info'); fetchRequests(); }}><RefreshCw size={15} /> Refresh</button>
+                </div>
               </div>
             </section>
-
-            <main className="container" style={{ paddingBottom: '4rem', paddingTop: '0.5rem' }}>
+            <main className="container pool-main">
               <section className="feed">
-                
-                {/* Live Pool Control & Quick Filters Card */}
-                <div className="card" style={{ padding: '1.25rem 1.5rem', marginBottom: '1.5rem' }}>
-                  {/* Top Bar: Title & Search Field */}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.25rem' }}>
-                    <div>
-                      <h2 style={{ fontSize: '1.25rem', fontWeight: '700', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        Recent Player Requests
-                        <span className="badge-count">{displayResults.length}</span>
-                      </h2>
-                      <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                        Live requests sorted by newest first
-                      </p>
-                    </div>
-
-                    <div className="search-wrap" style={{ minWidth: '260px' }}>
-                      <Search size={15} />
-                      <input
-                        type="text"
-                        placeholder="Search Epic, PSN, Xbox, Discord..."
-                        className="search-field"
-                        value={searchQuery}
-                        onChange={e => setSearchQuery(e.target.value)}
-                      />
-                    </div>
+                <div className="card pool-filter-card">
+                  <div className="feed-toolbar">
+                    <div><h2>Player requests <span className="badge-count">{displayResults.length}</span></h2><p>Newest first. Find a player on your wavelength.</p></div>
+                    <div className="search-wrap"><Search size={15} /><input type="search" aria-label="Search player requests" placeholder="Search player or gamer ID..." className="search-field" value={searchQuery} onChange={event => setSearchQuery(event.target.value)} /></div>
                   </div>
-
-                  {/* Filter Group: Regions */}
-                  <div style={{ marginBottom: '0.85rem' }}>
-                    <span style={{ fontSize: '0.8rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--text-secondary)', display: 'block', marginBottom: '0.4rem' }}>
-                      🌐 Server Region
-                    </span>
-                    <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
-                      {['All', 'NA-East', 'NA-Central', 'NA-West', 'Europe', 'Asia', 'Brazil', 'Oceania', 'Middle East'].map(r => (
-                        <button
-                          type="button"
-                          key={r}
-                          onClick={() => setPoolFilters(prev => ({ ...prev, region: r }))}
-                          style={{
-                            padding: '0.35rem 0.75rem',
-                            borderRadius: '20px',
-                            border: poolFilters.region === r ? '1px solid var(--primary-color)' : '1px solid var(--border-color)',
-                            background: poolFilters.region === r ? 'rgba(59, 130, 246, 0.15)' : 'var(--input-bg)',
-                            color: poolFilters.region === r ? 'var(--primary-color)' : 'var(--text-primary)',
-                            fontWeight: poolFilters.region === r ? '700' : '500',
-                            fontSize: '0.8rem',
-                            cursor: 'pointer',
-                            transition: 'all 0.15s ease'
-                          }}
-                        >
-                          {r === 'All' ? 'All Regions' : r}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Filter Group: Game Mode & Build Mode */}
-                  <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
-                    <div>
-                      <span style={{ fontSize: '0.8rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--text-secondary)', display: 'block', marginBottom: '0.4rem' }}>
-                        🏆 Mode
-                      </span>
-                      <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
-                        {['All', 'Ranked', 'Unranked', 'Creative'].map(m => (
-                          <button
-                            type="button"
-                            key={m}
-                            onClick={() => setPoolFilters(prev => ({ ...prev, mainMode: m }))}
-                            style={{
-                              padding: '0.35rem 0.75rem',
-                              borderRadius: '20px',
-                              border: poolFilters.mainMode === m ? '1px solid var(--primary-color)' : '1px solid var(--border-color)',
-                              background: poolFilters.mainMode === m ? 'rgba(59, 130, 246, 0.15)' : 'var(--input-bg)',
-                              color: poolFilters.mainMode === m ? 'var(--primary-color)' : 'var(--text-primary)',
-                              fontWeight: poolFilters.mainMode === m ? '700' : '500',
-                              fontSize: '0.8rem',
-                              cursor: 'pointer',
-                              transition: 'all 0.15s ease'
-                            }}
-                          >
-                            {m === 'All' ? 'All Modes' : m}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div>
-                      <span style={{ fontSize: '0.8rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--text-secondary)', display: 'block', marginBottom: '0.4rem' }}>
-                        🧱 Build Setting
-                      </span>
-                      <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
-                        {['All', 'Build', 'Zero Build'].map(b => (
-                          <button
-                            type="button"
-                            key={b}
-                            onClick={() => setPoolFilters(prev => ({ ...prev, buildType: b }))}
-                            style={{
-                              padding: '0.35rem 0.75rem',
-                              borderRadius: '20px',
-                              border: poolFilters.buildType === b ? '1px solid var(--primary-color)' : '1px solid var(--border-color)',
-                              background: poolFilters.buildType === b ? 'rgba(59, 130, 246, 0.15)' : 'var(--input-bg)',
-                              color: poolFilters.buildType === b ? 'var(--primary-color)' : 'var(--text-primary)',
-                              fontWeight: poolFilters.buildType === b ? '700' : '500',
-                              fontSize: '0.8rem',
-                              cursor: 'pointer',
-                              transition: 'all 0.15s ease'
-                            }}
-                          >
-                            {b === 'All' ? 'All Builds' : b}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
+                  <div className="pool-filter-grid">
+                    {[
+                      { key: 'region', label: 'Server region', options: ['All', 'NA-East', 'NA-Central', 'NA-West', 'Europe', 'Asia', 'Brazil', 'Oceania', 'Middle East'] },
+                      { key: 'mainMode', label: 'Game mode', options: ['All', 'Ranked', 'Unranked', 'Creative'] },
+                      { key: 'buildType', label: 'Build style', options: ['All', 'Build', 'Zero Build'] },
+                      { key: 'platform', label: 'Platform', options: ['All', 'PC', 'PlayStation', 'Xbox', 'Nintendo', 'Any'] }
+                    ].map(group => <div key={group.key} role="group" aria-label={group.label}><span className="filter-label">{group.label}</span><div className="filter-options">{group.options.map(option => <button type="button" key={option} className={`pool-filter ${poolFilters[group.key] === option ? 'active' : ''}`} aria-pressed={poolFilters[group.key] === option} onClick={() => setPoolFilters(prev => ({ ...prev, [group.key]: option }))}>{option === 'Nintendo' ? 'Nintendo Switch' : option === 'Any' ? 'Cross-platform' : option}</button>)}</div></div>)}
                   </div>
                 </div>
 
@@ -890,9 +760,9 @@ export default function App() {
                 ) : (
                   <div className="card empty-state" style={{ padding: '3.5rem 1.5rem', textAlign: 'center' }}>
                     <UserX size={48} className="empty-icon" style={{ margin: '0 auto 1rem', color: 'var(--text-muted)' }} />
-                    <h3 style={{ fontSize: '1.3rem', marginBottom: '0.5rem' }}>No Active Requests in this Queue</h3>
+                    <h3 style={{ fontSize: '1.3rem', marginBottom: '0.5rem' }}>No requests found.</h3>
                     <p style={{ color: 'var(--text-secondary)', maxWidth: '450px', margin: '0 auto 1.5rem' }}>
-                      Be the first player to broadcast a request to the live pool!
+                      Try another filter, or post a request to get your next squad started.
                     </p>
                     <button
                       type="button"
@@ -900,7 +770,7 @@ export default function App() {
                       onClick={handleOpenPostModal}
                       style={{ padding: '0.75rem 1.5rem' }}
                     >
-                      <Plus size={16} /> + Post Teammate Request
+                      <Plus size={16} /> Post a request
                     </button>
                   </div>
                 )}
@@ -922,7 +792,7 @@ export default function App() {
       <AuthModal
         isOpen={isAuthModalOpen}
         onClose={() => setIsAuthModalOpen(false)}
-        initialTab={authInitialTab}
+        initialMode={authInitialTab}
         onAuthSuccess={handleAuthSuccess}
         showToast={showToast}
       />
@@ -943,7 +813,7 @@ export default function App() {
         isOpen={isPremiumModalOpen}
         onClose={() => setIsPremiumModalOpen(false)}
         currentUser={currentUser}
-        onUpgradeSuccess={() => handleUpdateProfile({ isPremium: true })}
+        onUpgradeSuccess={loadUser}
         onOpenAuthModal={(tab) => {
           setIsPremiumModalOpen(false);
           setAuthInitialTab(tab || 'login');

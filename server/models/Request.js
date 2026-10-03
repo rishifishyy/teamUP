@@ -47,12 +47,12 @@ const requestSchema = new mongoose.Schema({
   },
   buildType: {
     type: String,
-    enum: ['Build', 'No Build'],
+    enum: ['Build', 'Zero Build', 'No Build'],
     default: 'Build'
   },
   creativeType: {
     type: String,
-    enum: ['Box Fight', 'Zonewars'],
+    enum: ['Box Fight', 'Zonewars', '1v1', 'Realistics'],
     default: 'Box Fight'
   },
   teamSize: {
@@ -94,7 +94,8 @@ const requestSchema = new mongoose.Schema({
   isHidden: {
     type: Boolean,
     default: false
-  }
+  },
+  isPremium: { type: Boolean, default: false }
 }, {
   timestamps: true
 });

@@ -60,16 +60,10 @@ export const api = {
   },
 
   async getMe() {
-    try {
-      const res = await fetch(`${API_BASE}/auth/me`, {
-        headers: getAuthHeaders()
-      });
-      if (!res.ok) return null;
-      const data = await safeJson(res);
-      return data.user;
-    } catch {
-      return null;
-    }
+    const res = await fetch(`${API_BASE}/auth/me`, { headers: getAuthHeaders() });
+    if (res.status === 401 || res.status === 404) return null;
+    const data = await safeJson(res);
+    return data.user;
   },
 
   async updateProfile(profileData) {
@@ -104,15 +98,12 @@ export const api = {
   },
 
   async deleteRequest(id) {
-    try {
-      const res = await fetch(`${API_BASE}/requests/${id}`, {
-        method: 'DELETE',
-        headers: getAuthHeaders()
-      });
-      return res.ok;
-    } catch {
-      return true;
-    }
+    const res = await fetch(`${API_BASE}/requests/${id}`, {
+      method: 'DELETE',
+      headers: getAuthHeaders()
+    });
+    await safeJson(res, 'Failed to remove teammate request');
+    return true;
   },
 
   async sendMatchRequest(postId, setupData = {}) {

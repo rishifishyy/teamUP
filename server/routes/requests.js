@@ -46,14 +46,17 @@ router.get('/', async (req, res) => {
         createdAt: { $gte: poolCutoff }
       }).sort({ createdAt: -1 }).limit(100);
 
-      return res.json({ requests });
+      return res.json({ requests: requests.map(request => {
+        const data = request.toObject();
+        return { ...data, buildType: data.buildType === 'No Build' ? 'Zero Build' : data.buildType };
+      }) });
     } else {
       const db = getFallbackDb();
       const requests = [...(db.requests || [])]
         .filter(r => !r.isHidden && new Date(r.createdAt) >= poolCutoff)
         .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
-      return res.json({ requests });
+      return res.json({ requests: requests.map(request => ({ ...request, buildType: request.buildType === 'No Build' ? 'Zero Build' : request.buildType })) });
     }
   } catch (err) {
     console.error('Fetch requests error:', err);
@@ -75,7 +78,7 @@ router.post('/', async (req, res) => {
       discordId,
       region,
       mainMode,
-      buildType,
+      buildType: suppliedBuildType,
       creativeType,
       teamSize,
       platform,
@@ -86,9 +89,17 @@ router.post('/', async (req, res) => {
       note,
       isHidden
     } = req.body;
+    const buildType = suppliedBuildType === 'No Build' ? 'Zero Build' : suppliedBuildType;
 
     if (!gamertag || !region || !mainMode || !teamSize || !platform) {
       return res.status(400).json({ error: 'Please provide all required request fields.' });
+    }
+    // Validate before replacing the user's existing request, in both storage modes.
+    if (!['Ranked', 'Unranked', 'Creative'].includes(mainMode) ||
+        !['Duos', 'Trios', 'Squads'].includes(teamSize) ||
+        (mainMode !== 'Creative' && !['Build', 'Zero Build'].includes(buildType)) ||
+        (mainMode === 'Creative' && !['Box Fight', 'Zonewars', '1v1', 'Realistics'].includes(creativeType))) {
+      return res.status(400).json({ error: 'Choose a valid game mode, build style, and team size.' });
     }
 
     let userAge = 18;
@@ -214,10 +225,10 @@ router.delete('/:id', async (req, res) => {
   try {
     const id = req.params.id;
     const userId = getAuthUserId(req);
+    if (!userId) return res.status(401).json({ error: 'You must be logged in to remove a request.' });
 
     if (getIsMongoConnected()) {
-      const query = { _id: id };
-      if (userId) query.userId = userId;
+      const query = { _id: id, userId };
 
       const deleted = await Request.findOneAndDelete(query);
       if (!deleted) {
@@ -229,6 +240,10 @@ router.delete('/:id', async (req, res) => {
       const idx = db.requests.findIndex(r => r.id === id || r._id === id);
       if (idx === -1) {
         return res.status(404).json({ error: 'Request not found.' });
+      }
+      const user = findFallbackUser(db, getAuthDecoded(req));
+      if (!user || String(db.requests[idx].userId) !== String(user.id || user._id)) {
+        return res.status(403).json({ error: 'You can only remove your own request.' });
       }
 
       db.requests.splice(idx, 1);

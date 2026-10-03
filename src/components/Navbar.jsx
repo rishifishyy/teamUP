@@ -51,7 +51,7 @@ export default function Navbar({
     <header className="navbar">
       <div className="container nav-container">
 
-        <div className="brand-logo" onClick={() => onNavigate('home')}>
+        <button type="button" className="brand-logo" onClick={() => onNavigate('home')} aria-label="TeamUP home">
           <div className="logo-icon">
             <Gamepad2 size={22} />
           </div>
@@ -59,9 +59,9 @@ export default function Navbar({
             <span className="brand-name">Team<span>UP</span></span>
             <span className="brand-badge">FORTNITE LFG</span>
           </div>
-        </div>
+        </button>
 
-        <nav className="nav-links">
+        <nav className="nav-links" aria-label="Main navigation">
           <button
             className={`nav-link ${currentView === 'home' ? 'active' : ''}`}
             onClick={() => onNavigate('home')}
@@ -79,12 +79,12 @@ export default function Navbar({
               color: 'var(--primary-color)'
             }}
           >
-            <Zap size={16} style={{ fill: 'currentColor' }} /> Launch Live Pool
+            <Zap size={16} /> Live pool
           </button>
         </nav>
 
         <div className="nav-actions">
-          <button className="btn-icon" onClick={onToggleTheme} title="Toggle Theme" style={{ marginRight: '0.25rem' }}>
+          <button className="btn-icon" onClick={onToggleTheme} aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`} title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}>
             {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
           </button>
 

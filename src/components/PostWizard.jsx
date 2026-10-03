@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, ChevronRight, ChevronLeft, Globe, Trophy, Gamepad2, Mic, MicOff, Megaphone, Send } from 'lucide-react';
 import { FORTNITE_REGIONS } from './FilterSidebar';
@@ -60,6 +60,7 @@ export default function PostWizard({
   const isInviteMode = mode === 'invite' || Boolean(targetPost);
   const [step, setStep] = useState(1);
   const [direction, setDirection] = useState(1);
+  const initializedFor = useRef(null);
 
   const [wizardData, setWizardData] = useState({
     region: targetPost?.region || initialPreferences?.region || currentUser?.region || 'NA-East',
@@ -73,20 +74,34 @@ export default function PostWizard({
   });
 
   useEffect(() => {
+    if (!isOpen) {
+      initializedFor.current = null;
+      return;
+    }
+    const setupKey = `${mode}:${currentUser?.id || currentUser?._id || ''}:${targetPost?.id || targetPost?._id || ''}`;
+    if (initializedFor.current === setupKey) return;
+    initializedFor.current = setupKey;
+    setStep(1);
+    setDirection(1);
     if (currentUser) {
       let defaultPlat = 'PC';
       if (currentUser.psnId) defaultPlat = 'PlayStation';
       else if (currentUser.xboxId) defaultPlat = 'Xbox';
       else if (currentUser.nintendoId) defaultPlat = 'Nintendo';
 
-      setWizardData(prev => ({
-        ...prev,
-        region: targetPost?.region || currentUser.region || prev.region,
+      const mainMode = targetPost?.mainMode || initialPreferences?.mainMode || 'Ranked';
+      setWizardData({
+        region: targetPost?.region || currentUser.region || initialPreferences?.region || 'NA-East',
+        mainMode,
+        rank: targetPost?.rank || 'Diamond',
+        subMode: mainMode === 'Creative' ? (targetPost?.creativeType || 'Box Fight') : (targetPost?.teamSize || 'Duos'),
+        buildType: targetPost?.buildType === 'No Build' ? 'Zero Build' : (targetPost?.buildType || 'Build'),
         platform: defaultPlat,
-        hasMic: currentUser.hasMic !== undefined ? currentUser.hasMic : prev.hasMic
-      }));
+        hasMic: currentUser.hasMic !== false,
+        note: ''
+      });
     }
-  }, [currentUser, targetPost, isOpen]);
+  }, [currentUser, targetPost, isOpen, initialPreferences, mode]);
 
   if (!isOpen) return null;
 
@@ -596,7 +611,7 @@ export default function PostWizard({
                 <div className="wp-line" />
                 <div className={`wp-dot ${step >= 7 ? 'active' : ''}`} />
               </div>
-              <button type="button" className="modal-close-btn" onClick={onClose}><X size={20} /></button>
+              <button type="button" className="modal-close-btn" aria-label="Close request setup" onClick={onClose}><X size={20} /></button>
             </div>
 
             <div className="wizard-body-wrapper">

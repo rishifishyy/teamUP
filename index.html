@@ -1,8 +1,18 @@
 <!doctype html>
-<html lang="en" data-theme="light">
+<html lang="en" data-theme="dark">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#090e10" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <script>
+      try {
+        const savedTheme = localStorage.getItem('teamup_theme_v2') || localStorage.getItem('teamup_theme');
+        const theme = ['light', 'dark'].includes(savedTheme) ? savedTheme : 'dark';
+        document.documentElement.dataset.theme = theme;
+        document.querySelector('meta[name="theme-color"]').content = theme === 'dark' ? '#090e10' : '#f5f7f3';
+      } catch {}
+    </script>
     <title>TeamUP | Fortnite Teammate & Squad Finder</title>
     <meta name="description" content="Find real-time Fortnite teammates across all 8 regions for Ranked, Unranked, and Creative modes. Match by platform, mic, and language." />
     <link rel="preconnect" href="https://fonts.googleapis.com">

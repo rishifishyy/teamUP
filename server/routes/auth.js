@@ -359,7 +359,7 @@ router.post('/login', async (req, res) => {
       }
 
       const token = generateToken(user);
-      const { password: _, ...userObj } = user;
+      const { password: _, resetToken: _reset, resetTokenExpiry: _expiry, ...userObj } = user;
 
       return res.json({ token, user: userObj });
     }
@@ -397,7 +397,7 @@ router.get('/me', async (req, res) => {
         saveFallbackDb(db);
       }
 
-      const { password: _, ...userObj } = user;
+      const { password: _, resetToken: _reset, resetTokenExpiry: _expiry, ...userObj } = user;
       return res.json({ user: userObj });
     }
   } catch (err) {
@@ -621,7 +621,7 @@ router.put('/profile', async (req, res) => {
         }).catch(err => console.warn('Account update email error:', err));
       }
 
-      const { password: _, ...userObj } = db.users[idx];
+      const { password: _, resetToken: _reset, resetTokenExpiry: _expiry, ...userObj } = db.users[idx];
       return res.json({ user: userObj });
     }
   } catch (err) {

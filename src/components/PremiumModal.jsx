@@ -126,7 +126,7 @@ export default function PremiumModal({ isOpen, onClose, currentUser, onUpgradeSu
           <h3 className="modal-title" style={{ color: '#fbbf24', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
             <Crown size={18} style={{ fill: '#fbbf24' }} /> Upgrade to TeamUP Premium
           </h3>
-          <button type="button" className="modal-close-btn" onClick={onClose}>
+          <button type="button" className="modal-close-btn" aria-label="Close premium plans" onClick={onClose}>
             <X size={20} />
           </button>
         </div>
@@ -173,7 +173,7 @@ export default function PremiumModal({ isOpen, onClose, currentUser, onUpgradeSu
               Unlimited Fortnite Teammate Matching
             </h2>
             <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', maxWidth: '380px', margin: '0 auto' }}>
-              Free tier accounts can only post once every 7 days. Premium members bypass limits and get priority matching.
+              Start with 2 free successful matches. Premium members can keep connecting after their free passes are used.
             </p>
           </div>
 
@@ -209,10 +209,10 @@ export default function PremiumModal({ isOpen, onClose, currentUser, onUpgradeSu
 
           <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 1.25rem', display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
             <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-main)', fontSize: '0.85rem' }}>
-              <Check size={15} style={{ color: '#10b981', flexShrink: 0 }} /> Unlimited Teammate Broadcasts (No 7-day wait)
+              <Check size={15} style={{ color: '#10b981', flexShrink: 0 }} /> Unlimited matching · one active lookup and invite at a time
             </li>
             <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-main)', fontSize: '0.85rem' }}>
-              <Check size={15} style={{ color: '#10b981', flexShrink: 0 }} /> Top Priority Placement in Feed &amp; Matchmaking
+              <Check size={15} style={{ color: '#10b981', flexShrink: 0 }} /> Connect across every region, mode, and platform
             </li>
             <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-main)', fontSize: '0.85rem' }}>
               <Shield size={15} style={{ color: '#10b981', flexShrink: 0 }} /> Verified Golden 👑 VIP Badge on all your posts
